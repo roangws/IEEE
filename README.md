@@ -7,6 +7,7 @@ An advanced RAG (Retrieval-Augmented Generation) system that analyzes 5,634 acad
 ## Analysis Results & Corpus Metrics
 
 ### 📚 Dataset Overview (5,634 Papers)
+- **Data Source**: [IEEE Access Journal (2025)](https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=6287639)
 - **Total Corpus Size**: 5,634 academic papers fully indexed and analyzed
 - **Citation Network**: 225,855 references extracted across the entire corpus
 - **Paper Length Distribution**: 2204 - 9,301 words (avg 6,630, median 6,085)
@@ -311,7 +312,7 @@ Roan-IEEE/
 
 **Roan Guilherme Weigert Salgueiro**
 
-*AI/ML Engineer specializing in RAG systems, academic paper analysis, and automated content generation*
+*AI Engineer specializing in RAG systems, academic paper analysis, and automated content generation*
 
 This project demonstrates expertise in:
 - Large-scale document analysis and quality assessment
