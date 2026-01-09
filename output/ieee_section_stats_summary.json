@@ -1,0 +1,79 @@
+{
+  "papers_analyzed": 467,
+  "section_word_distributions": {
+    "Abstract": {
+      "min": 114,
+      "max": 4065,
+      "mean": 1551.7,
+      "median": 476,
+      "p10": 114,
+      "p90": 4065
+    },
+    "Introduction": {
+      "min": 148,
+      "max": 19443,
+      "mean": 1987.2,
+      "median": 1178.0,
+      "p10": 494,
+      "p90": 4555
+    },
+    "Related Work": {
+      "min": 100,
+      "max": 16200,
+      "mean": 2205.5,
+      "median": 1502,
+      "p10": 457,
+      "p90": 4699
+    },
+    "Methodology": {
+      "min": 8,
+      "max": 11745,
+      "mean": 2337.6,
+      "median": 1856.0,
+      "p10": 504,
+      "p90": 4622
+    },
+    "Experiments": {
+      "min": 30,
+      "max": 6105,
+      "mean": 1655.2,
+      "median": 1554,
+      "p10": 515,
+      "p90": 2950
+    },
+    "Results": {
+      "min": 3,
+      "max": 14115,
+      "mean": 1984.6,
+      "median": 1593,
+      "p10": 415,
+      "p90": 3940
+    },
+    "Discussion": {
+      "min": 4,
+      "max": 13297,
+      "mean": 1355.1,
+      "median": 847.0,
+      "p10": 211,
+      "p90": 2864
+    },
+    "Conclusion": {
+      "min": 1,
+      "max": 5371,
+      "mean": 1009.4,
+      "median": 773,
+      "p10": 157,
+      "p90": 2098
+    }
+  },
+  "section_presence_rates": {
+    "Abstract": 0.6,
+    "Introduction": 98.9,
+    "Related Work": 40.0,
+    "Methodology": 59.5,
+    "Experiments": 39.2,
+    "Results": 36.6,
+    "Discussion": 30.0,
+    "Conclusion": 67.5
+  }
+}

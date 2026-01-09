@@ -21,9 +21,9 @@ htmlcov/
 .ui_cache/
 .qdrant/
 
-# Ignore output files
-output/
+# Ignore output files (except analysis results)
 *.log
+# output/ directory removed to allow commit of analysis results
 
 # Ignore OS files
 .DS_Store

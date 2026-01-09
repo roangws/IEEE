@@ -1,0 +1,66 @@
+{
+  "total_papers_analyzed": 5634,
+  "total_papers_failed": 0,
+  "math_density": {
+    "papers_with_math": 5577,
+    "avg_math_indicators": 41.35658501952432
+  },
+  "statistical_tests": {
+    "papers_with_stats": 5123,
+    "avg_stat_keywords": 7.093716719914803,
+    "papers_with_pvalue": 410
+  },
+  "code_availability": {
+    "papers_with_code": 1100,
+    "papers_with_github": 1059
+  },
+  "figures_tables": {
+    "avg_figures": 23.07454739084132,
+    "avg_tables": 14.577209797657082
+  },
+  "comparisons": {
+    "papers_with_comparisons": 5313,
+    "avg_comparisons": 8.26304579339723
+  },
+  "datasets": {
+    "avg_dataset_mentions": 29.337415690450833,
+    "papers_with_known_datasets": 2196
+  },
+  "contributions": {
+    "papers_with_contrib_statement": 702,
+    "avg_bullet_points_intro": 0.009229676961306355
+  },
+  "limitations": {
+    "papers_with_limitations_section": 0,
+    "papers_mentioning_limitations": 4947
+  },
+  "ablation": {
+    "papers_with_ablation": 1809,
+    "avg_ablation_mentions": 1.4994675186368478
+  },
+  "multiple_runs": {
+    "papers_with_runs": 2664,
+    "avg_reproducibility_indicators": 1.7492012779552715,
+    "papers_with_seeds": 823
+  },
+  "error_reporting": {
+    "papers_with_error_reporting": 3316,
+    "avg_error_indicators": 3.1760738374156903,
+    "papers_with_std": 1849,
+    "papers_with_plus_minus": 1057
+  },
+  "readability": {
+    "avg_flesch_reading_ease": 41.74142350017749,
+    "avg_flesch_kincaid_grade": 9.726874334398296
+  },
+  "overclaiming": {
+    "papers_with_hype": 5333,
+    "avg_hype_words": 7.125310614128505,
+    "papers_with_sota": 3291,
+    "papers_with_novel": 4634
+  },
+  "performance_metrics": {
+    "avg_unique_metrics": 4.944266950656727,
+    "avg_total_metric_mentions": 51.395278665246714
+  }
+}

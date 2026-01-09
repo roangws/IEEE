@@ -1,0 +1,201 @@
+venue,count
+Proceedings of the IEEE,11622
+CVPR,6546
+NeurIPS,3465
+Machine Learning (journal),2856
+ICCV,2537
+ECCV,1364
+Neural Computation,869
+JMLR,568
+Communications of the ACM,298
+"A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weissenborn, X. Zhai, T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold,",288
+"D. P. Kingma and J. Ba, ‘‘Adam: A method for stochastic optimization,’’ 2014, arXiv:1412.6980",131
+"K. Simonyan and A. Zisserman, ‘‘Very deep convolutional networks for large-scale image recognition,’’ 2014, arXiv:1409.1556",122
+"J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, ‘‘BERT: Pre-training of deep bidirectional transformers for language understanding,’’ 2018, arXiv:1810.04805",98
+"Y. LeCun, Y. Bengio, and G. Hinton, ‘‘Deep learning,’’ Nature",98
+"J. Devlin, M. Chang, K. Lee, and K. Toutanova, ‘‘BERT: Pre-training of deep bidirectional transformers for language unde",94
+"A. Radford, J. W. Kim, C. Hallacy, A. Ramesh, G. Goh, S. Agarwal, G. Sastry, A. Askell, P. Mishkin, J. Clark, G. Krueger",93
+"A. G. Howard, M. Zhu, B. Chen, D. Kalenichenko, W. Wang, T. Weyand, M. Andreetto, and H. Adam, ‘‘MobileNets: Efficient convolutional neural networks for mobile vision applications,’’ 2017, arXiv:1704.",84
+"T. Chen and C. Guestrin, ‘‘XGBoost: A scalable tree boosting system,’’ in Proc. 22nd ACM SIGKDD Int. Conf. Knowl. Discovery Data Mining, Aug. 2016",84
+"N. V. Chawla, K. W. Bowyer, L. O. Hall, and W. P. Kegelmeyer, ‘‘SMOTE: Synthetic minority over-sampling technique,’’ J.",77
+"J. Redmon and A. Farhadi, ‘‘YOLOv3: An incremental improvement,’’ 2018, arXiv:1804.02767",75
+"Y. Liu, M. Ott, N. Goyal, J. Du, M. Joshi, D. Chen, O. Levy, M. Lewis, L. Zettlemoyer, and V. Stoyanov, ‘‘RoBERTa: A robustly optimized BERT pretraining approach,’’ 2019, arXiv:1907.11692",68
+"S. Ren, K. He, R. Girshick, and J. Sun, ‘‘Faster R-CNN: Towards real- time object detection with region proposal networks,’’ IEEE Trans. Pattern Anal. Mach. Intell",67
+"G. Gui, H. Huang, Y. Song, and H. Sari, ‘‘Deep learning for an effec- tive nonorthogonal multiple access scheme,’’ IEEE Trans. Veh. Technol",64
+"Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, ‘‘Image quality assessment: From error visibility to structural similarity,’’ IEEE Trans. Image Process",63
+"T. N. Kipf and M. Welling, ‘‘Semi-supervised classification with graph convolutional networks,’’ 2016, arXiv:1609.02907",54
+"I. Loshchilov and F. Hutter, ‘‘Decoupled weight decay regularization,’’ 2017, arXiv:1711.05101",53
+"Y. Wang, M. Liu, J. Yang, and G. Gui, ‘‘Data-driven deep learning for automatic modulation recognition in cognitive radios,’’ IEEE Trans. Veh. Technol",50
+"A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin, ‘‘Attention is all",49
+"G. Hinton, O. Vinyals, and J. Dean, ‘‘Distilling the knowledge in a neural network,’’ 2015, arXiv:1503.02531",49
+"H. Zhou, S. Zhang, J. Peng, S. Zhang, J. Li, H. Xiong, and W. Zhang, ‘‘Informer: Beyond efficient transformer for long s",47
+"J. Achiam et al., ‘‘GPT-4 technical report,’’ 2023, arXiv:2303.08774",47
+"J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, ‘‘BERT: Pre-training of deep bidirectional transformers for language u",47
+"A. Wang, H. Chen, L. Liu, K. Chen, Z. Lin, J. Han, and G. Ding, ‘‘YOLOv10: Real-time end-to-end object detection,’’ 2024, arXiv:2405.14458",46
+"F. Pedregosa, G. Varoquaux, A. Gramfort, V. Michel, B. Thirion, O. Grisel, M. Blondel, P. Prettenhofer, R. Weiss, V. Dub",46
+"H. Touvron, T. Lavril, G. Izacard, X. Martinet, M.-A. Lachaux, T. Lacroix, B. Rozière, N. Goyal, E. Hambro, F. Azhar, A.",44
+"J. Chen, Y. Lu, Q. Yu, X. Luo, E. Adeli, Y. Wang, L. Lu, A. L. Yuille, and Y. Zhou, ‘‘TransUNet: Transformers make strong encoders for medical image segmentation,’’ 2021, arXiv:2102.04306",42
+"K. Cho, B. van Merrienboer, C. Gulcehre, D. Bahdanau, F. Bougares, H. Schwenk, and Y. Bengio, ‘‘Learning phrase represen",41
+"H. B. McMahan, E. Moore, D. Ramage, S. Hampson, and B. A. Y. Arcas, ‘‘Communication-efficient learning of deep networks",41
+"O. Russakovsky, J. Deng, H. Su, J. Krause, S. Satheesh, S. Ma, Z. Huang, A. Karpathy, A. Khosla, M. Bernstein, A. C. Ber",40
+"I. Goodfellow, Y. Bengio, and A. Courville, Deep Learning. Cambridge, MA, USA: MIT Press, 2016",40
+"O. Ronneberger, P. Fischer, and T. Brox, ‘‘U-Net: Convolutional networks for biomedical image segmentation,’’ in Proc. I",39
+"H. Huang, Y. Song, J. Yang, G. Gui, and F. Adachi, ‘‘Deep-learning-based millimeter-wave massive MIMO for hybrid precoding,’’ IEEE Trans. Veh. Technol",39
+"S. Ren, K. He, R. Girshick, and J. Sun, ‘‘Faster R-CNN: Towards real-time object detection with region proposal networks,’’ IEEE Trans. Pattern Anal. Mach. Intell",39
+"C. Li, L. Li, H. Jiang, K. Weng, Y. Geng, L. Li, Z. Ke, Q. Li, M. Cheng, W. Nie, Y. Li, B. Zhang, Y. Liang, L. Zhou, X.",37
+"J. H. Friedman, ‘‘Greedy function approximation: A gradient boosting machine,’’ Ann. Statist",37
+"A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. Kaiser, and I. Polosukhin, ‘‘Attention is all you need,’’ 2017, arXiv:1706.03762",36
+"A. Radford, J. Wu, R. Child, D. Luan, D. Amodei, and I. Sutskever, ‘‘Language models are unsupervised multitask learners",36
+"H. Touvron et al., ‘‘Llama 2: Open foundation and fine-tuned chat models,’’ 2023, arXiv:2307.09288",35
+"D. P. Kingma and M. Welling, ‘‘Auto-encoding variational Bayes,’’ 2013, arXiv:1312.6114",35
+"T. Mikolov, K. Chen, G. Corrado, and J. Dean, ‘‘Efficient estimation of word representations in vector space,’’ 2013, arXiv:1301.3781",33
+"K. He, X. Zhang, S. Ren, and J. Sun, ‘‘Spatial pyramid pooling in deep convolutional networks for visual recognition,’’ IEEE Trans. Pattern Anal. Mach. Intell",33
+"J. Pennington, R. Socher, and C. Manning, ‘‘Glove: Global vectors for word representation,’’ in Proc. Conf. Empirical Me",32
+"A. Bochkovskiy, C.-Y. Wang, and H.-Y. Mark Liao, ‘‘YOLOv4: Optimal speed and accuracy of object detection,’’ 2020, arXiv:2004.10934",31
+"O. Ronneberger, P. Fischer, and T. Brox, ‘‘U-Net: Convolutional networks for biomedical image segmentation,’’ in Proc. 1",31
+"J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov, ‘‘Proximal policy optimization algorithms,’’ 2017, arXiv:1707.06347",31
+"C. Shorten and T. M. Khoshgoftaar, ‘‘A survey on image data augmentation for deep learning,’’ J. Big Data",30
+"X. Zhu, W. Su, L. Lu, B. Li, X. Wang, and J. Dai, ‘‘Deformable DETR: Deformable transformers for end-to-end object detection,’’ 2020, arXiv:2010.04159",30
+"D. Hendrycks and K. Gimpel, ‘‘Gaussian error linear units (GELUs),’’ 2016, arXiv:1606.08415",30
+"L.-C. Chen, G. Papandreou, I. Kokkinos, K. Murphy, and A. L. Yuille, ‘‘DeepLab: Semantic image segmentation with deep convolutional nets, atrous convolution, and fully connected CRFs,’’ IEEE Trans. Pa",29
+"Y. Tian, Q. Ye, and D. Doermann, ‘‘YOLOv12: Attention-centric real-time object detectors,’’ 2025, arXiv:2502.12524",29
+"A. Krizhevsky, I. Sutskever, and G. E. Hinton, ‘‘ImageNet classification with deep convolutional neural networks,’’ in P",29
+"E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, L. Wang, and W. Chen, ‘‘LoRA: Low-rank adaptation of large language models,’’ 2021, arXiv:2106.09685",28
+"K. He, X. Zhang, S. Ren, and J. Sun, ‘‘Deep residual learning for image recognition,’’ 2015, arXiv:1512.03385",27
+"K. Papineni, S. Roukos, T. Ward, and W.-J. Zhu, ‘‘BLEU: A method for automatic evaluation of machine translation,’’ in P",27
+"K. Han, Y. Wang, H. Chen, X. Chen, J. Guo, Z. Liu, Y. Tang, A. Xiao, C. Xu, Y. Xu, Z. Yang, Y. Zhang, and D. Tao, ‘‘A survey on vision transformer,’’ IEEE Trans. Pattern Anal. Mach. Intell",27
+"P. Lewis, E. Perez, A. Piktus, F. Petroni, V. Karpukhin, N. Goyal, H. Küttler, M. Lewis, W.-T. Yih, T. Rocktäschel, S. R",27
+"V. Mnih, K. Kavukcuoglu, D. Silver, A. A. Rusu, J. Veness, M. G. Bellemare, A. Graves, M. Riedmiller, A. K. Fidjeland, G",26
+"Z. Ge, S. Liu, F. Wang, Z. Li, and J. Sun, ‘‘YOLOX: Exceeding YOLO series in 2021,’’ 2021, arXiv:2107.08430",26
+"A. Grattafiori et al., ‘‘The llama 3 herd of models,’’ 2024, arXiv:2407.21783",26
+"O. Ronneberger, P. Fischer, and T. Brox, ‘‘U-net: Convolutional networks for biomedical image segmentation,’’ in Proc. 1",26
+"N. Reimers and I. Gurevych, ‘‘Sentence-BERT: Sentence embeddings using Siamese BERT-networks,’’ 2019, arXiv:1908.10084",26
+"D. Bahdanau, K. Cho, and Y. Bengio, ‘‘Neural machine translation by jointly learning to align and translate,’’ 2014, arXiv:1409.0473",26
+"R. Khanam and M. Hussain, ‘‘YOLOv11: An overview of the key architectural enhancements,’’ 2024, arXiv:2410.17725",25
+"T. Akiba, S. Sano, T. Yanase, T. Ohta, and M. Koyama, ‘‘Optuna: A next-generation hyperparameter optimization framework,’’ in Proc. 25th ACM SIGKDD Int. Conf. Knowl. Discovery Data Mining, Jul. 2019",25
+"F. Pedregosa, G. Varoquaux, A. Gramfort, V. Michel, B. Thirion, O. Grisel, M. Blondel, P. Prettenhofer, R. J. Weiss, V.",24
+"H. He and E. A. Garcia, ‘‘Learning from imbalanced data,’’ IEEE Trans. Knowl. Data Eng",24
+"M. Lewis, Y. Liu, N. Goyal, M. Ghazvininejad, A. Mohamed, O. Levy, V. Stoyanov, and L. Zettlemoyer, ‘‘BART: Denoising se",23
+"A. Bochkovskiy, C.-Y. Wang, and H.-Y. M. Liao, ‘‘YOLOv4: Optimal speed and accuracy of object detection,’’ 2020, arXiv:2004.10934",23
+"J. E. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, and W. Chen, ‘‘LoRA: Low-rank adaptation of large language m",23
+"H. Huang, W. Xia, J. Xiong, J. Yang, G. Zheng, and X. Zhu, ‘‘Unsuper- vised learning-based fast beamforming design for downlink MIMO,’’ IEEE Access",22
+"A. Sherstinsky, ‘‘Fundamentals of recurrent neural network (RNN) and long short-term memory (LSTM) network,’’ Phys. D, N",22
+"T. P. Lillicrap, J. J. Hunt, A. Pritzel, N. Heess, T. Erez, Y. Tassa, D. Silver, and D. Wierstra, ‘‘Continuous control with deep reinforcement learning,’’ 2015, arXiv:1509.02971",22
+"Z. Li, F. Liu, W. Yang, S. Peng, and J. Zhou, ‘‘A survey of convolutional neural networks: Analysis, applications, and prospects,’’ IEEE Trans. Neural Netw. Learn. Syst",22
+"K. Deb, A. Pratap, S. Agarwal, and T. Meyarivan, ‘‘A fast and elitist multiobjective genetic algorithm: NSGA-II,’’ IEEE Trans. Evol. Comput",22
+"P. J. Rousseeuw, ‘‘Silhouettes: A graphical aid to the interpretation and validation of cluster analysis,’’ J. Comput. A",22
+"R. R. Selvaraju, M. Cogswell, A. Das, R. Vedantam, D. Parikh, and D. Batra, ‘‘Grad-CAM: Visual explanations from deep ne",22
+"H. Xiao, K. Rasul, and R. Vollgraf, ‘‘Fashion-MNIST: A novel image dataset for benchmarking machine learning algorithms,’’ 2017, arXiv:1708.07747",22
+"O. Ronneberger, P. Fischer, and T. Brox, ‘‘U-Net: Convolutional networks for biomedical image segmentation,’’ in Proc. M",22
+"A. L. Goldberger, L. A. N. Amaral, L. Glass, J. M. Hausdorff, P. C. Ivanov, R. G. Mark, J. E. Mietus, G. B. Moody, C.-K.",22
+"O. Oktay, J. Schlemper, L. Le Folgoc, M. Lee, M. Heinrich, K. Misawa, K. Mori, S. McDonagh, N. Y. Hammerla, B. Kainz, B.",21
+"N. Moustafa and J. Slay, ‘‘UNSW-NB15: A comprehensive data set for network intrusion detection systems (UNSW-NB15 networ",21
+"D. E. Rumelhart, G. E. Hinton, and R. J. Williams, ‘‘Learning rep- resentations by back-propagating errors,’’ Nature",20
+"Z. Zheng, P. Wang, W. Liu, J. Li, R. Ye, and D. Ren, ‘‘Distance-IoU loss: Faster and better learning for bounding box re",20
+"V. Badrinarayanan, A. Kendall, and R. Cipolla, ‘‘SegNet: A deep convolutional encoder–decoder architecture for image segmentation,’’ IEEE Trans. Pattern Anal. Mach. Intell",20
+"C. E. Shannon, ‘‘A mathematical theory of communication,’’ Bell Syst. Tech. J",20
+"C. Ledig, L. Theis, F. Huszár, J. Caballero, A. Cunningham, A. Acosta, A. Aitken, A. Tejani, J. Totz, Z. Wang, and W. Sh",20
+"M. Everingham, L. Van Gool, C. K. I. Williams, J. Winn, and A. Zisserman, ‘‘The Pascal visual object classes (VOC) chall",20
+"M. Raissi, P. Perdikaris, and G. E. Karniadakis, ‘‘Physics-informed neural networks: A deep learning framework for solvi",20
+"S. Mirjalili, S. M. Mirjalili, and A. Lewis, ‘‘Grey wolf optimizer,’’ Adv. Eng. Softw",20
+"F. Scarselli, M. Gori, A. C. Tsoi, M. Hagenbuchner, and G. Monfardini, ‘‘The graph neural network model,’’ IEEE Trans. Neural Netw",19
+"W. Liu, D. Anguelov, D. Erhan, C. Szegedy, S. Reed, C.-Y. Fu, and A. C. Berg, ‘‘SSD: Single shot MultiBox detector,’’ in",19
+"M. Sokolova and G. Lapalme, ‘‘A systematic analysis of performance measures for classification tasks,’’ Inf. Process. Ma",19
+"N. Reimers and I. Gurevych, ‘‘Sentence-BERT: Sentence embeddings using Siamese BERT-networks,’’ in Proc. Conf. Empirical",19
+"A. Ramesh, P. Dhariwal, A. Nichol, C. Chu, and M. Chen, ‘‘Hier- archical text-conditional image generation with CLIP latents,’’ 2022, arXiv:2204.06125",19
+"J. Gou, B. Yu, S. J. Maybank, and D. Tao, ‘‘Knowledge distillation: A survey,’’ Int. J. Comput. Vis",19
+"J. Hu, L. Shen, S. Albanie, G. Sun, and E. Wu, ‘‘Squeeze-and-excitation networks,’’ IEEE Trans. Pattern Anal. Mach. Intell",19
+"R. Storn and K. Price, ‘‘Differential evolution—A simple and efficient heuristic for global optimization over continuous",18
+"S. Yan, Y. Xiong, and D. Lin, ‘‘Spatial temporal graph convolutional networks for skeleton-based action recognition,’’ i",18
+"S. Bai, J. Zico Kolter, and V. Koltun, ‘‘An empirical evaluation of generic convolutional and recurrent networks for sequence modeling,’’ 2018, arXiv:1803.01271",18
+"I. J. Goodfellow, J. Shlens, and C. Szegedy, ‘‘Explaining and harnessing adversarial examples,’’ 2014, arXiv:1412.6572",18
+"J. Chung, C. Gulcehre, K. Cho, and Y. Bengio, ‘‘Empirical evaluation of gated recurrent neural networks on sequence modeling,’’ 2014, arXiv:1412.3555",18
+"T.-Y. Lin, M. Maire, S. Belongie, J. Hays, P. Perona, D. Ramanan, P. Dollár, and C. L. Zitnick, ‘‘Microsoft COCO: Common",18
+"M. Liu, T. Song, and G. Gui, ‘‘Deep cognitive perspective: Resource allocation for NOMA-based heterogeneous IoT with imperfect SIC,’’ IEEE Internet Things J",18
+"Z. Wu, S. Pan, F. Chen, G. Long, C. Zhang, and P. S. Yu, ‘‘A comprehensive survey on graph neural networks,’’ IEEE Trans. Neural Netw. Learn. Syst",18
+"I. Sharafaldin, A. H. Lashkari, and A. A. Ghorbani, ‘‘Toward generating a new intrusion detection dataset and intrusion",18
+"M. Schuster and K. K. Paliwal, ‘‘Bidirectional recurrent neural networks,’’ IEEE Trans. Signal Process",17
+"F. Sun, J. Liu, J. Wu, C. Pei, X. Lin, W. Ou, and P. Jiang, ‘‘BERT4Rec: Sequential recommendation with bidirectional encoder representations from transformer,’’ in Proc. 28th ACM Int. Conf. Inf. Knowl",17
+"M. Mirza and S. Osindero, ‘‘Conditional generative adversarial nets,’’ 2014, arXiv:1411.1784",17
+"A. Gu and T. Dao, ‘‘Mamba: Linear-time sequence modeling with selective state spaces,’’ 2023, arXiv:2312.00752",17
+"D. Silver, A. Huang, C. J. Maddison, A. Guez, L. Sifre, G. van den Driessche, J. Schrittwieser, I. Antonoglou, V. Pannee",17
+"S. Banerjee and A. Lavie, ‘‘METEOR: An automatic metric for MT evaluation with improved correlation with human judgments,’’ in Proc. ACL Workshop Intrinsic Extrinsic Eval. Measures Mach. Transl. Summa",17
+"L. A. Zadeh, ‘‘Fuzzy sets,’’ Inf. Control",17
+"L. Alzubaidi, J. Zhang, A. J. Humaidi, A. Al-Dujaili, Y. Duan, O. Al-Shamma, J. Santamaría, M. A. Fadhel, M. Al-Amidie,",17
+"S. J. Pan and Q. Yang, ‘‘A survey on transfer learning,’’ IEEE Trans. Knowl. Data Eng",17
+"A. Geiger, P. Lenz, C. Stiller, and R. Urtasun, ‘‘Vision meets robotics: The KITTI dataset,’’ Int. J. Robot. Res",17
+"Y. Chang, X. Wang, J. Wang, Y. Wu, L. Yang, K. Zhu, H. Chen, X. Yi, C. Wang, Y. Wang, W. Ye, Y. Zhang, Y. Chang, P. S. Yu, Q. Yang, and X. Xie, ‘‘A survey on evaluation of large language models,’’ ACM",17
+"L. Ouyang, J. Wu, X. Jiang, D. Almeida, C. L. Wainwright, P. Mishkin, C. Zhang, S. Agarwal, K. Slama, A. Ray, J. Schulma",17
+"T. Li, A. K. Sahu, A. Talwalkar, and V. Smith, ‘‘Federated learning: Challenges, methods, and future directions,’’ IEEE Signal Process. Mag",17
+"D. G. Lowe, ‘‘Distinctive image features from scale-invariant keypoints,’’ Int. J. Comput. Vis",17
+"T. Fawcett, ‘‘An introduction to ROC analysis,’’ Pattern Recognit. Lett",17
+"C.-Y. Wang, I.-H. Yeh, and H.-Y. M. Liao, ‘‘YOLOv9: Learning what you want to learn using programmable gradient information,’’ 2024, arXiv:2402.13616",17
+"J. Lei Ba, J. Ryan Kiros, and G. E. Hinton, ‘‘Layer normalization,’’ 2016, arXiv:1607.06450",17
+"A. van den Oord, Y. Li, and O. Vinyals, ‘‘Representation learning with contrastive predictive coding,’’ 2018, arXiv:1807.03748",16
+"T. Wang, C.-K. Wen, H. Wang, F. Gao, T. Jiang, and S. Jin, ‘‘Deep learning for wireless physical layer: Opportunities an",16
+"J. Cohen, ‘‘A coefficient of agreement for nominal scales,’’ Educ. Psychol. Meas",16
+"D. H. Wolpert and W. G. Macready, ‘‘",16
+"K. Simonyan and A. Zisserman, ‘‘Very deep convolutional networks for large-scale image recognition,’’ in Proc. Int. Conf",16
+"G. E. Hinton and R. R. Salakhutdinov, ‘‘Reducing the dimensionality of data with neural networks,’’ Science",16
+"G. Gui, H. Sari, and E. Biglieri, ‘‘A new deﬁnition of fairness for non-orthogonal multiple access,’’ IEEE Commun. Lett",16
+"M. Ester, H. Kriegel, J. Sander, and X. Xu, ‘‘A density-based algorithm for discovering clusters in large spatial databa",16
+"S. Minaee, Y. Boykov, F. Porikli, A. Plaza, N. Kehtarnavaz, and D. Terzopoulos, ‘‘Image segmentation using deep learning: A survey,’’ IEEE Trans. Pattern Anal. Mach. Intell",16
+"L. Yang and A. Shami, ‘‘On hyperparameter optimization of machine learning algorithms: Theory and practice,’’ Neurocompu",16
+"C. Dong, C. C. Loy, K. He, and X. Tang, ‘‘Image super-resolution using deep convolutional networks,’’ IEEE Trans. Pattern Anal. Mach. Intell",16
+"H. Huang, J. Yang, H. Huang, Y. Song, and G. Gui, ‘‘Deep learning for super-resolution channel estimation and DOA estimation based massive MIMO system,’’ IEEE Trans. Veh. Technol",16
+"J. Schmidhuber, ‘‘Deep learning in neural networks: An overview,’’ Neural Netw",15
+"D. Chicco, M. J. Warrens, and G. Jurman, ‘‘The coefficient of determi- nation R-squared is more informative than SMAPE,",15
+"O. Ronneberger, P. Fischer, and T. Brox, ‘‘U-net: Convolutional networks for biomedical image segmentation,’’ in Proc. I",15
+"Z. Xing, G. Ma, L. Wang, L. Yang, X. Guo, and S. Chen, ‘‘Toward visual interaction: Hand segmentation by combining 3-D graph deep learning and laser point cloud for intelligent rehabilitation,’’ IEEE",15
+"S. Mehta and M. Rastegari, ‘‘MobileViT: Light-weight, general-purpose, and mobile-friendly vision transformer,’’ 2021, arXiv:2110.02178",15
+"C.-Y. Wang, I.-H. Yeh, and H.-Y. Mark Liao, ‘‘YOLOv9: Learning what you want to learn using programmable gradient information,’’ 2024, arXiv:2402.13616",15
+"A. Mittal, A. K. Moorthy, and A. C. Bovik, ‘‘",15
+"A. Paszke et al., ‘‘PyTorch: An imperative style, high-performance deep learning library,’’ 2019, arXiv:1912.01703",15
+"S. Bach, A. Binder, G. Montavon, F. Klauschen, K.-R. Müller, and W. Samek, ‘‘On pixel-wise explanations for non-linear c",15
+"Z. Cai and N. Vasconcelos, ‘‘Cascade R-CNN: High quality object detection and instance segmentation,’’ IEEE Trans. Pattern Anal. Mach. Intell",15
+"Z. Zhou, M. M. R. Siddiquee, N. Tajbakhsh, and J. Liang, ‘‘UNet++: Redesigning skip connections to exploit multiscale features in image segmentation,’’ IEEE Trans. Med. Imag",14
+"C.-K. Wen, W.-T. Shih, and S. Jin, ‘‘Deep learning for massive MIMO CSI feedback,’’ IEEE Wireless Commun. Lett",14
+"H. Huang, J. Yang, H. Huang, Y. Song, and G. Gui, ‘‘Deep learn- ing for super-resolution channel estimation and doa estimation based massive MIMO system,’’ IEEE Trans. Veh. Technol",14
+"A. Creswell, T. White, V. Dumoulin, K. Arulkumaran, B. Sengupta, and A. A. Bharath, ‘‘Generative adversarial networks: An overview,’’ IEEE Signal Process. Mag",14
+"R. S. Sutton and A. G. Barto, Reinforcement Learning: An Introduction. Cambridge, MA, USA: MIT Press, 2018",14
+"A. Q. Jiang, A. Sablayrolles, A. Mensch, C. Bamford, D. S. Chaplot, D. de las Casas, F. Bressand, G. Lengyel, G. Lample,",14
+"Z. Cao, G. Hidalgo, T. Simon, S.-E. Wei, and Y. Sheikh, ‘‘OpenPose: Realtime multi-person 2D pose estimation using part affinity fields,’’ IEEE Trans. Pattern Anal. Mach. Intell",14
+"A. Esteva, B. Kuprel, R. A. Novoa, J. Ko, S. M. Swetter, H. M. Blau, and S. Thrun, ‘‘Dermatologist-level classification of skin cancer with deep neural networks,’’ Nature",14
+"A. Zeng, M. Chen, L. Zhang, and Q. Xu, ‘‘Are transformers effective for time series forecasting?’’ in Proc. AAAI Conf. A",14
+"O. Ronneberger, P. Fischer, and T. Brox, ‘‘U-net: Convolutional networks for biomedical image segmentation,’’ in Proc. M",14
+"F. M. Harper and J. A. Konstan, ‘‘The MovieLens datasets: History and context,’’ ACM Trans. Interact. Intell. Syst",14
+"H. Ye, G. Y. Li, and B.-H. Juang, ‘‘Power of deep learning for channel esti- mation and signal detection in OFDM systems,’’ IEEE Wireless Commun. Lett",14
+"P. Bojanowski, E. Grave, A. Joulin, and T. Mikolov, ‘‘Enriching word vectors with subword information,’’ Trans. Assoc. C",14
+"E. Shelhamer, J. Long, and T. Darrell, ‘‘Fully convolutional networks for semantic segmentation,’’ IEEE Trans. Pattern Anal. Mach. Intell",14
+"J. Song, C. Meng, and S. Ermon, ‘‘Denoising diffusion implicit models,’’ 2020, arXiv:2010.02502",14
+"S. Ruder, ‘‘An overview of gradient descent optimization algorithms,’’ 2016, arXiv:1609.04747",14
+"W. Shi, J. Caballero, F. Huszár, J. Totz, A. P. Aitken, R. Bishop, D. Rueckert, and Z. Wang, ‘‘Real-time single image an",14
+"S. Lundberg and S.-I. Lee, ‘‘A unified approach to interpreting model predictions,’’ 2017, arXiv:1705.07874",14
+"J. Wang, K. Sun, T. Cheng, B. Jiang, C. Deng, Y. Zhao, D. Liu, Y. Mu, M. Tan, X. Wang, W. Liu, and B. Xiao, ‘‘Deep high-resolution representation learning for visual recognition,’’ IEEE Trans. Pattern",14
+"A. Madry, A. Makelov, L. Schmidt, D. Tsipras, and A. Vladu, ‘‘Towards deep learning models resistant to adversarial attacks,’’ 2017, arXiv:1706.06083",14
+"T. Wolf et al., ‘‘Transformers: State-of-the-art natural language process- ing,’’ in Proc. Conf. Empirical Methods Natur",14
+"A. Mittal, R. Soundararajan, and A. C. Bovik, ‘‘Making a ‘completely blind’ image quality analyzer,’’ IEEE Signal Process. Lett",14
+"I. Loshchilov and F. Hutter, ‘‘SGDR: Stochastic gradient descent with warm restarts,’’ 2016, arXiv:1608.03983",14
+"Y. Bengio, A. Courville, and P. Vincent, ‘‘Representation learning: A review and new perspectives,’’ IEEE Trans. Pattern Anal. Mach. Intell",14
+"A. X. Chang, T. Funkhouser, L. Guibas, P. Hanrahan, Q. Huang, Z. Li, S. Savarese, M. Savva, S. Song, H. Su, J. Xiao, L.",14
+"T. M. Cover and P. E. Hart, ‘‘Nearest neighbor pattern classification,’’ IEEE Trans. Inf. Theory",13
+"M. Tan and Q. V. Le, ‘‘EfficientNet: Rethinking model scaling for convolutional neural networks,’’ 2019, arXiv:1905.11946",13
+"T. B. Brown et al., ‘‘Language models are few-shot learners,’’ 2020, arXiv:2005.14165",13
+"K. Zhang, Z. Zhang, Z. Li, and Y. Qiao, ‘‘Joint face detection and alignment using multitask cascaded convolutional networks,’’ IEEE Signal Process. Lett",13
+"P. Virtanen et al., ‘‘SciPy 1.0: Fundamental algorithms for scientific computing in Python,’’ Nature Methods",13
+"D. Guo et al., ‘‘DeepSeek-r1: Incentivizing reasoning capability in LLMs via reinforcement learning,’’ 2025, arXiv:2501.12948",13
+"M. J. Page et al., ‘‘The PRISMA 2020 statement: An updated guideline for reporting systematic reviews,’’ BMJ",13
+"Z. Ning, Y. Li, P. Dong, X. Wang, M. S. Obaidat, X. Hu, L. Guo, Y. Guo, J. Huang, and B. Hu, ‘‘When deep reinforcement l",13
+"Y. Liu, T. Hu, H. Zhang, H. Wu, S. Wang, L. Ma, and M. Long, ‘‘ITrans- former: Inverted transformers are effective for time series forecasting,’’ 2023, arXiv:2310.06625",13
+"M. Chen et al., ‘‘Evaluating large language models trained on code,’’ 2021, arXiv:2107.03374",13
+"N. Ravi, V. Gabeur, Y.-T. Hu, R. Hu, C. Ryali, T. Ma, H. Khedr, R. Rädle, C. Rolland, L. Gustafson, E. Mintun, J. Pan, K",13
+"M. Liu, T. Song, J. Hu, J. Yang, and G. Gui, ‘‘Deep learning-inspired message passing algorithm for efﬁcient resource allocation in cognitive radio networks,’’ IEEE Trans. Veh. Technol",13
+"A. Horé and D. Ziou, ‘‘Image quality metrics: PSNR vs. SSIM,’’ in Proc. 20th Int. Conf. Pattern Recognit., Aug. 2010",13
+"O. Ronneberger, P. Fischer, and T. Brox, ‘‘U-Net: Convolutional net- works for biomedical image segmentation,’’ in Proc.",13
+"Y. Zhao, W. Lv, S. Xu, J. Wei, G. Wang, Q. Dang, Y. Liu, and J. Chen, ‘‘DETRs beat YOLOs on real-time object detection,’’ 2023, arXiv:2304.08069",13
+"Z. Xing, Z. Meng, G. Zheng, G. Ma, L. Yang, X. Guo, L. Tan, Y. Jiang, and H. Wu, ‘‘Intelligent rehabilitation in an agin",13
+"H. Zhang, M. Cisse, Y. N. Dauphin, and D. Lopez-Paz, ‘‘Mixup: Beyond empirical risk minimization,’’ 2017, arXiv:1710.09412",13
+"Y. Li, X. Cheng, and G. Gui, ‘‘Co-robust-ADMM-net: Joint ADMM framework and DNN for robust sparse composite regularization,’’ IEEE Access",13
+"S. M. Lundberg, G. Erion, H. Chen, A. DeGrave, J. M. Prutkin, B. Nair, R. Katz, J. Himmelfarb, N. Bansal, and S.-I. Lee,",13
+"Y. Freund and R. E. Schapire, ‘‘A decision-theoretic generalization of on- line learning and an application to boosting,",13
+"J. Wang, Y. Ding, S. Bian, Y. Peng, M. Liu, and G. Gui, ‘‘UL-CSI data driven deep learning for predicting DL-CSI in cellular FDD systems,’’ IEEE Access",13

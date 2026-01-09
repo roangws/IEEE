@@ -1,0 +1,287 @@
+{
+  "sample_info": {
+    "total_pdfs_available": 5634,
+    "sample_size": 200,
+    "successfully_analyzed": 200
+  },
+  "statistics": {
+    "avg_word_count": 7414.13,
+    "avg_sections": 7.42,
+    "avg_subsections": 0.21,
+    "total_unique_subsections": 41
+  },
+  "common_section_keywords": [
+    {
+      "keyword": "Abstract",
+      "frequency": 200,
+      "percentage": 100.0
+    },
+    {
+      "keyword": "Introduction",
+      "frequency": 200,
+      "percentage": 100.0
+    },
+    {
+      "keyword": "References",
+      "frequency": 200,
+      "percentage": 100.0
+    },
+    {
+      "keyword": "Results",
+      "frequency": 199,
+      "percentage": 99.5
+    },
+    {
+      "keyword": "Approach",
+      "frequency": 190,
+      "percentage": 95.0
+    },
+    {
+      "keyword": "Method",
+      "frequency": 187,
+      "percentage": 93.5
+    },
+    {
+      "keyword": "Conclusion",
+      "frequency": 162,
+      "percentage": 81.0
+    },
+    {
+      "keyword": "Experiments",
+      "frequency": 125,
+      "percentage": 62.5
+    },
+    {
+      "keyword": "Methodology",
+      "frequency": 110,
+      "percentage": 55.0
+    },
+    {
+      "keyword": "Discussion",
+      "frequency": 81,
+      "percentage": 40.5
+    },
+    {
+      "keyword": "Background",
+      "frequency": 68,
+      "percentage": 34.0
+    },
+    {
+      "keyword": "Acknowledgment",
+      "frequency": 52,
+      "percentage": 26.0
+    },
+    {
+      "keyword": "Related Work",
+      "frequency": 33,
+      "percentage": 16.5
+    }
+  ],
+  "common_subsection_patterns": [
+    {
+      "subsection": "3.5: Turbo",
+      "frequency": 2,
+      "percentage": 1.0
+    },
+    {
+      "subsection": "2.7: Mtrainable",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "3.5: Turbousingahuman",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "3.5: Turboachieved",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "1.8: M Ekstazi",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "3.6: Krespectively",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "3.2: MP spectral",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "2.5: Pro",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "2.5: Pro redundant",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "8.1: GFLOPs",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "3.7: GFLOPs",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "1.1: GFLOPs",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "4.2: GFLOPs",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "3.2: Integration",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "3.2: Documentation",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "4.0: Models",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "4.0: Modelsfor",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "0.54: Mparameters",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "1.2: MB model",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "640.553: Gflops",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "7.17: Documentation",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "4.0: Digital",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "2.5: Bp CU",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "3.5: Sonnet",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "3.5: Turboand",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "3.5: Sonnetisgenerally",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "1.58: Giga",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "2.3: Documentation",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "3.50: Gbps",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "1.1.1: Resolver",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "0.50: Hzand",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "2.5: Lyapunov",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "7.5: M earthquake",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "7.5: Mww subjective",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "1.6.1: Documentation",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "3.5: Turbomodelto",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "4.57: Mparameters",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "4.0: Io T",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "0.1: Cconstantloadpattern",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "0.2: Cconstantloadpattern",
+      "frequency": 1,
+      "percentage": 0.5
+    },
+    {
+      "subsection": "0.2: Cand",
+      "frequency": 1,
+      "percentage": 0.5
+    }
+  ]
+}

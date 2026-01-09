@@ -1,0 +1,415 @@
+{
+  "run_config": {
+    "sample_size": 0,
+    "candidate_limit": 15000,
+    "last_pages": 3,
+    "workers": 8,
+    "collection": "academic_papers_full_specter2",
+    "rerun_failed": true
+  },
+  "sampling": {
+    "method": "manifest",
+    "manifest": "output/references_full_manifest.csv"
+  },
+  "processing": {
+    "papers_ok": 5011,
+    "papers_total": 5634,
+    "seconds": 16.42,
+    "avg_seconds_per_paper": 0.0263,
+    "max_seconds_per_paper": 0.8861,
+    "progress_log": "output/checkpoints/references_bibliography_progress.jsonl",
+    "total_reference_entries_extracted": 225855,
+    "total_reference_years_extracted": 225017,
+    "total_reference_venues_extracted": 225846
+  },
+  "references_text": {
+    "ref_words_min": 64,
+    "ref_words_max": 4526,
+    "ref_words_p10": 1236,
+    "ref_words_p25": 1514,
+    "ref_words_p50": 1902,
+    "ref_words_p75": 2358,
+    "ref_words_p90": 2847,
+    "ref_words_avg": 1981.12
+  },
+  "cited_years": {
+    "min": 1950,
+    "max": 2026,
+    "p10": 2011,
+    "p25": 2017,
+    "p50": 2021,
+    "p75": 2023,
+    "p90": 2024
+  },
+  "top_years": [
+    [
+      2024,
+      30293
+    ],
+    [
+      2023,
+      27148
+    ],
+    [
+      2022,
+      22696
+    ],
+    [
+      2025,
+      21115
+    ],
+    [
+      2021,
+      20530
+    ],
+    [
+      2020,
+      16438
+    ],
+    [
+      2019,
+      15427
+    ],
+    [
+      2018,
+      12356
+    ],
+    [
+      2017,
+      10482
+    ],
+    [
+      2016,
+      7520
+    ],
+    [
+      2015,
+      5869
+    ],
+    [
+      2014,
+      4512
+    ],
+    [
+      2013,
+      3121
+    ],
+    [
+      2012,
+      2905
+    ],
+    [
+      2010,
+      2559
+    ],
+    [
+      2011,
+      2361
+    ],
+    [
+      2009,
+      2235
+    ],
+    [
+      2008,
+      1700
+    ],
+    [
+      2007,
+      1559
+    ],
+    [
+      2006,
+      1547
+    ]
+  ],
+  "top_venues": [
+    [
+      "Proceedings of the IEEE",
+      11622
+    ],
+    [
+      "CVPR",
+      6546
+    ],
+    [
+      "NeurIPS",
+      3465
+    ],
+    [
+      "Machine Learning (journal)",
+      2856
+    ],
+    [
+      "ICCV",
+      2537
+    ],
+    [
+      "ECCV",
+      1364
+    ],
+    [
+      "Neural Computation",
+      869
+    ],
+    [
+      "JMLR",
+      568
+    ],
+    [
+      "Communications of the ACM",
+      298
+    ],
+    [
+      "A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weissenborn, X. Zhai, T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold,",
+      288
+    ],
+    [
+      "D. P. Kingma and J. Ba, \u2018\u2018Adam: A method for stochastic optimization,\u2019\u2019 2014, arXiv:1412.6980",
+      131
+    ],
+    [
+      "K. Simonyan and A. Zisserman, \u2018\u2018Very deep convolutional networks for large-scale image recognition,\u2019\u2019 2014, arXiv:1409.1556",
+      122
+    ],
+    [
+      "J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, \u2018\u2018BERT: Pre-training of deep bidirectional transformers for language understanding,\u2019\u2019 2018, arXiv:1810.04805",
+      98
+    ],
+    [
+      "Y. LeCun, Y. Bengio, and G. Hinton, \u2018\u2018Deep learning,\u2019\u2019 Nature",
+      98
+    ],
+    [
+      "J. Devlin, M. Chang, K. Lee, and K. Toutanova, \u2018\u2018BERT: Pre-training of deep bidirectional transformers for language unde",
+      94
+    ],
+    [
+      "A. Radford, J. W. Kim, C. Hallacy, A. Ramesh, G. Goh, S. Agarwal, G. Sastry, A. Askell, P. Mishkin, J. Clark, G. Krueger",
+      93
+    ],
+    [
+      "A. G. Howard, M. Zhu, B. Chen, D. Kalenichenko, W. Wang, T. Weyand, M. Andreetto, and H. Adam, \u2018\u2018MobileNets: Efficient convolutional neural networks for mobile vision applications,\u2019\u2019 2017, arXiv:1704.",
+      84
+    ],
+    [
+      "T. Chen and C. Guestrin, \u2018\u2018XGBoost: A scalable tree boosting system,\u2019\u2019 in Proc. 22nd ACM SIGKDD Int. Conf. Knowl. Discovery Data Mining, Aug. 2016",
+      84
+    ],
+    [
+      "N. V. Chawla, K. W. Bowyer, L. O. Hall, and W. P. Kegelmeyer, \u2018\u2018SMOTE: Synthetic minority over-sampling technique,\u2019\u2019 J.",
+      77
+    ],
+    [
+      "J. Redmon and A. Farhadi, \u2018\u2018YOLOv3: An incremental improvement,\u2019\u2019 2018, arXiv:1804.02767",
+      75
+    ],
+    [
+      "Y. Liu, M. Ott, N. Goyal, J. Du, M. Joshi, D. Chen, O. Levy, M. Lewis, L. Zettlemoyer, and V. Stoyanov, \u2018\u2018RoBERTa: A robustly optimized BERT pretraining approach,\u2019\u2019 2019, arXiv:1907.11692",
+      68
+    ],
+    [
+      "S. Ren, K. He, R. Girshick, and J. Sun, \u2018\u2018Faster R-CNN: Towards real- time object detection with region proposal networks,\u2019\u2019 IEEE Trans. Pattern Anal. Mach. Intell",
+      67
+    ],
+    [
+      "G. Gui, H. Huang, Y. Song, and H. Sari, \u2018\u2018Deep learning for an effec- tive nonorthogonal multiple access scheme,\u2019\u2019 IEEE Trans. Veh. Technol",
+      64
+    ],
+    [
+      "Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, \u2018\u2018Image quality assessment: From error visibility to structural similarity,\u2019\u2019 IEEE Trans. Image Process",
+      63
+    ],
+    [
+      "T. N. Kipf and M. Welling, \u2018\u2018Semi-supervised classification with graph convolutional networks,\u2019\u2019 2016, arXiv:1609.02907",
+      54
+    ],
+    [
+      "I. Loshchilov and F. Hutter, \u2018\u2018Decoupled weight decay regularization,\u2019\u2019 2017, arXiv:1711.05101",
+      53
+    ],
+    [
+      "Y. Wang, M. Liu, J. Yang, and G. Gui, \u2018\u2018Data-driven deep learning for automatic modulation recognition in cognitive radios,\u2019\u2019 IEEE Trans. Veh. Technol",
+      50
+    ],
+    [
+      "A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, \u0141. Kaiser, and I. Polosukhin, \u2018\u2018Attention is all",
+      49
+    ],
+    [
+      "G. Hinton, O. Vinyals, and J. Dean, \u2018\u2018Distilling the knowledge in a neural network,\u2019\u2019 2015, arXiv:1503.02531",
+      49
+    ],
+    [
+      "H. Zhou, S. Zhang, J. Peng, S. Zhang, J. Li, H. Xiong, and W. Zhang, \u2018\u2018Informer: Beyond efficient transformer for long s",
+      47
+    ],
+    [
+      "J. Achiam et al., \u2018\u2018GPT-4 technical report,\u2019\u2019 2023, arXiv:2303.08774",
+      47
+    ],
+    [
+      "J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, \u2018\u2018BERT: Pre-training of deep bidirectional transformers for language u",
+      47
+    ],
+    [
+      "A. Wang, H. Chen, L. Liu, K. Chen, Z. Lin, J. Han, and G. Ding, \u2018\u2018YOLOv10: Real-time end-to-end object detection,\u2019\u2019 2024, arXiv:2405.14458",
+      46
+    ],
+    [
+      "F. Pedregosa, G. Varoquaux, A. Gramfort, V. Michel, B. Thirion, O. Grisel, M. Blondel, P. Prettenhofer, R. Weiss, V. Dub",
+      46
+    ],
+    [
+      "H. Touvron, T. Lavril, G. Izacard, X. Martinet, M.-A. Lachaux, T. Lacroix, B. Rozi\u00e8re, N. Goyal, E. Hambro, F. Azhar, A.",
+      44
+    ],
+    [
+      "J. Chen, Y. Lu, Q. Yu, X. Luo, E. Adeli, Y. Wang, L. Lu, A. L. Yuille, and Y. Zhou, \u2018\u2018TransUNet: Transformers make strong encoders for medical image segmentation,\u2019\u2019 2021, arXiv:2102.04306",
+      42
+    ],
+    [
+      "K. Cho, B. van Merrienboer, C. Gulcehre, D. Bahdanau, F. Bougares, H. Schwenk, and Y. Bengio, \u2018\u2018Learning phrase represen",
+      41
+    ],
+    [
+      "H. B. McMahan, E. Moore, D. Ramage, S. Hampson, and B. A. Y. Arcas, \u2018\u2018Communication-efficient learning of deep networks",
+      41
+    ],
+    [
+      "O. Russakovsky, J. Deng, H. Su, J. Krause, S. Satheesh, S. Ma, Z. Huang, A. Karpathy, A. Khosla, M. Bernstein, A. C. Ber",
+      40
+    ],
+    [
+      "I. Goodfellow, Y. Bengio, and A. Courville, Deep Learning. Cambridge, MA, USA: MIT Press, 2016",
+      40
+    ],
+    [
+      "O. Ronneberger, P. Fischer, and T. Brox, \u2018\u2018U-Net: Convolutional networks for biomedical image segmentation,\u2019\u2019 in Proc. I",
+      39
+    ],
+    [
+      "H. Huang, Y. Song, J. Yang, G. Gui, and F. Adachi, \u2018\u2018Deep-learning-based millimeter-wave massive MIMO for hybrid precoding,\u2019\u2019 IEEE Trans. Veh. Technol",
+      39
+    ],
+    [
+      "S. Ren, K. He, R. Girshick, and J. Sun, \u2018\u2018Faster R-CNN: Towards real-time object detection with region proposal networks,\u2019\u2019 IEEE Trans. Pattern Anal. Mach. Intell",
+      39
+    ],
+    [
+      "C. Li, L. Li, H. Jiang, K. Weng, Y. Geng, L. Li, Z. Ke, Q. Li, M. Cheng, W. Nie, Y. Li, B. Zhang, Y. Liang, L. Zhou, X.",
+      37
+    ],
+    [
+      "J. H. Friedman, \u2018\u2018Greedy function approximation: A gradient boosting machine,\u2019\u2019 Ann. Statist",
+      37
+    ],
+    [
+      "A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. Kaiser, and I. Polosukhin, \u2018\u2018Attention is all you need,\u2019\u2019 2017, arXiv:1706.03762",
+      36
+    ],
+    [
+      "A. Radford, J. Wu, R. Child, D. Luan, D. Amodei, and I. Sutskever, \u2018\u2018Language models are unsupervised multitask learners",
+      36
+    ],
+    [
+      "H. Touvron et al., \u2018\u2018Llama 2: Open foundation and fine-tuned chat models,\u2019\u2019 2023, arXiv:2307.09288",
+      35
+    ],
+    [
+      "D. P. Kingma and M. Welling, \u2018\u2018Auto-encoding variational Bayes,\u2019\u2019 2013, arXiv:1312.6114",
+      35
+    ],
+    [
+      "T. Mikolov, K. Chen, G. Corrado, and J. Dean, \u2018\u2018Efficient estimation of word representations in vector space,\u2019\u2019 2013, arXiv:1301.3781",
+      33
+    ]
+  ],
+  "top_publisher_families": [
+    [
+      "other",
+      113936
+    ],
+    [
+      "ieee",
+      63412
+    ],
+    [
+      "arxiv",
+      15315
+    ],
+    [
+      "acm",
+      14626
+    ],
+    [
+      "springer",
+      4392
+    ],
+    [
+      "neurips",
+      4043
+    ],
+    [
+      "nature",
+      1999
+    ],
+    [
+      "elsevier",
+      1655
+    ],
+    [
+      "aaai",
+      1550
+    ],
+    [
+      "eccv",
+      1331
+    ],
+    [
+      "iclr",
+      646
+    ],
+    [
+      "icml",
+      594
+    ],
+    [
+      "mdpi",
+      567
+    ],
+    [
+      "wiley",
+      542
+    ],
+    [
+      "sage",
+      374
+    ],
+    [
+      "taylor_francis",
+      350
+    ],
+    [
+      "usenix",
+      199
+    ],
+    [
+      "cvpr",
+      139
+    ],
+    [
+      "ijcai",
+      96
+    ],
+    [
+      "iccv",
+      89
+    ]
+  ],
+  "notes": [
+    "Venue extraction is best-effort based on IEEE reference formatting heuristics.",
+    "Publisher family mapping is heuristic (keyword-based).",
+    "references_text.ref_words_* are word-count statistics of the extracted References section text (post 'REFERENCES' header, limited to last_pages)."
+  ]
+}

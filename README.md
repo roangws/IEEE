@@ -4,16 +4,122 @@
 
 An advanced RAG (Retrieval-Augmented Generation) system that analyzes 5,634 academic papers using AI-powered analytics, quality metrics assessment, and automated article generation. Built with multi-layer architecture and external reference integration.
 
-## 🌟 Key Highlights
+## Analysis Results & Corpus Metrics
+
+### 📚 Dataset Overview (5,634 Papers)
+- **Total Corpus Size**: 5,634 academic papers fully indexed and analyzed
+- **Citation Network**: 225,855 references extracted across the entire corpus
+- **Paper Length Distribution**: 2204 - 9,301 words (avg 6,630, median 6,085)
+- **Section Complexity**: 1 - 23 sections per paper (avg 20.1)
+- **Reference Density**: 15 - 80 references per paper (avg 42)
+- **In-text Citations**: 20 - 590 citations per paper (avg 137.5)
+- **Reference Depth**: Average 1,981 words per references section
+
+### 📊 Detailed Corpus Statistics 
+| Metric | Minimum | Mean | Median | Maximum |
+|--------|---------|------|--------|---------|
+| **Word Count** | 2422 | 6,630 | 6,085 | 9,301 |
+| **References Count** | 15 | 42 | 38 | 80 |
+| **In-text Citations** | 20 | 137.5 | 107 | 590 |
+| **References per 1k Words** | 3 | 6.5 | 6.5 | 12 |
+| **Section Count** | 1 | 20.1 | 18 | 23 |
+| **Avg Sentence Length** | 5.5 | 18.0 | 17.5 | 97.1 |
+| **Figures per Paper** | 3 | 9 | 7 | 15 |
+| **Tables per Paper** | 1 | 4 | 3 | 8 |
+
+### 📈 Key Insights from Corpus Analysis
+- **Structural Complexity**: Up to 23 sections demonstrates highly detailed technical papers
+- **Research Depth**: Comprehensive citation networks with 225,855+ references analyzed
+- **Quality Standards**: 99% contain mathematical content, 94% include comparative analysis
+
+### 🔬 Deep Quality Assessment (Full Corpus: 5,634 Papers)
+Comprehensive analysis across the entire dataset:
+
+| Metric Category | Corpus Findings |
+|----------------|-----------------|
+| **Mathematical Rigor** | 99% (5,577) contain mathematical content<br>Average 41.36 math indicators per paper<br>91% include statistical testing |
+| **Reproducibility** | 19.5% (1,100) provide code/GitHub links<br>47% report multiple experimental runs<br>59% include error reporting (std, variance) |
+| **Research Standards** | 94% (5,313) include comparative analysis<br>88% acknowledge limitations<br>32% perform ablation studies |
+| **Content Richness** | Average 9 figures, 4 tables per paper<br>4.94 unique performance metrics per paper<br>29.34 dataset mentions per paper |
+| **Academic Writing** | Flesch Reading Ease: 41.74 (College level)<br>Grade Level: 9.73 (College freshman)<br>82% make novelty claims, 58% claim SOTA |
+
+### 🏆 Top Publishing Venues in Corpus
+| Venue | Citation Count | Field |
+|-------|----------------|-------|
+| Proceedings of the IEEE | 11,622 | Engineering |
+| CVPR | 6,546 | Computer Vision |
+| NeurIPS | 3,465 | Machine Learning |
+| Machine Learning (journal) | 2,856 | ML Theory |
+| ICCV | 2,537 | Computer Vision |
+| ECCV | 1,364 | Computer Vision |
+| Neural Computation | 869 | Neural Networks |
+| JMLR | 568 | Machine Learning |
+
+### 📈 Publisher Distribution & Citation Analytics
+| Publisher Family | Citations | Market Share |
+|------------------|-----------|--------------|
+| IEEE | 63,412 | 28.1% |
+| arXiv | 15,315 | 6.8% |
+| ACM | 14,626 | 6.5% |
+| Springer | 4,392 | 1.9% |
+| NeurIPS | 4,043 | 1.8% |
+| Nature | 1,999 | 0.9% |
+| Elsevier | 1,655 | 0.7% |
+| AAAI | 1,550 | 0.7% |
+| ECCV | 1,331 | 0.6% |
+| ICLR | 646 | 0.3% |
+| ICML | 594 | 0.3% |
+| Other Publishers | 113,936 | 50.4% |
+
+### 🌐 Citation Network Intelligence
+- **Total References Analyzed**: 225,855 citations across 5,634 papers
+- **Citation Density**: Average 6.5 references per 1,000 words
+- **Peak Citation Years**: 2024 (30,293), 2023, 2022
+- **Citation Velocity**: 90% of references from last 15 years
+- **Most Influential Works** (within corpus):
+  1. "Attention Is All You Need" - 149 citations
+  2. "Adam: A Method for Stochastic Optimization" - 140 citations
+  3. "Deep Residual Learning" - 126 citations
+  4. "Dropout: A Simple Way to Prevent Neural Networks" - 111 citations
+  5. "Batch Normalization" - 107 citations
+
+### 📝 Section-Level Word Count Analysis (Sample: 467 Papers)
+
+| Section | Presence Rate | Mean Words | Median Words | Range (Min-Max) |
+|---------|---------------|------------|--------------|-----------------|
+| **Abstract** | 60% | 1,552 | 476 | 114 - 4,065 |
+| **Introduction** | 98.9% | 1,987 | 1,178 | 148 - 19,443 |
+| **Related Work** | 40.0% | 2,206 | 1,502 | 100 - 16,200 |
+| **Methodology** | 59.5% | 2,338 | 1,856 | 8 - 11,745 |
+| **Experiments** | 39.2% | 1,655 | 1,554 | 30 - 6,105 |
+| **Results** | 36.6% | 1,985 | 1,593 | 3 - 14,115 |
+| **Discussion** | 30.0% | 1,355 | 847 | 4 - 13,297 |
+| **Conclusion** | 67.5% | 1,009 | 773 | 1 - 5,371 |
+
+**Key Observations:**
+- Introduction has the highest presence rate (98.9%), making it nearly universal
+- Methodology sections are typically the longest (mean 2,338 words)
+- Abstract word count varies significantly, suggesting different journal requirements
+
+---
+
+## 🛠️ System Features & Capabilities
 
 ### 📊 **Advanced Analytics & Quality Assessment** (Primary Feature)
 Comprehensive analysis engine that evaluates academic papers across multiple dimensions:
 - **Reproducibility Metrics**: Code availability, random seeds, error reporting
 - **Statistical Rigor**: Mathematical content density, statistical tests, p-values
 - **Research Quality**: Comparisons, ablation studies, contribution statements
-- **Citation Network Analysis**: 224,859 references analyzed across corpus
+- **Citation Network Analysis**: 225,855 references analyzed across corpus
 - **Readability Assessment**: Flesch scores, grade levels, clarity metrics
 - **Pattern Detection**: IEEE structure compliance, common methodologies
+
+### 🔍 **Intelligent Q&A & Research Tools**
+- Semantic search across 5,634 papers using vector embeddings
+- AI-powered answers with inline citations and source excerpts
+- Theme extraction and trend analysis
+- Paper explorer with advanced filtering
+- Batch processing capabilities
 
 ### ✍️ **Multi-Layer Article Generation**
 4-layer system producing IEEE-formatted academic articles:
@@ -23,57 +129,18 @@ Comprehensive analysis engine that evaluates academic papers across multiple dim
 - **Layer 3**: Content refinement and quality enhancement
 - **Layer 4**: IEEE two-column formatting with MathJax equations
 
-### 🔍 **Intelligent Q&A & Research Tools**
-- Semantic search across 5,634 papers using vector embeddings
-- AI-powered answers with inline citations and source excerpts
-- Theme extraction and trend analysis
-- Paper explorer with advanced filtering
-- Batch processing capabilities
+---
 
-## 📊 Analysis Results & Corpus Metrics
+## 📚 User Guide
 
-### 📚 Dataset Scale
-- **Total Papers Indexed**: 5,634 academic papers
-- **Comprehensive Analysis**: 200 papers (structure) + 100 papers (quality metrics)
-- **Citation Network**: 224,859 references analyzed
-- **Average Paper Length**: 7,414 words | 7.42 sections
+### Quick Start
 
-### 🔬 Quality Metrics Analysis (100 Papers)
-
-| Category | Key Findings |
-|----------|-------------|
-| **Mathematical Rigor** | 98% contain math content (avg 39.56 indicators/paper)<br>98% use statistical tests (avg 8.63 keywords/paper) |
-| **Reproducibility** | 30% provide code/GitHub links<br>42% report multiple runs<br>50% include error reporting (std, confidence intervals) |
-| **Research Quality** | 97% include comparative analysis (avg 8.08 comparisons)<br>83% make novel claims, 49% claim SOTA<br>87% mention limitations, 27% include ablation studies |
-| **Content Depth** | Avg 22.9 figures, 14.71 tables per paper<br>29.88 dataset mentions, 35% use known datasets<br>4.79 unique performance metrics per paper |
-| **Readability** | Flesch Reading Ease: 42.31 (College level)<br>Flesch-Kincaid Grade: 9.63 (9th-10th grade) |
-
-### 📖 IEEE Paper Structure Analysis (200 Papers)
-| Section | Frequency | Section | Frequency |
-|---------|-----------|---------|----------|
-| Abstract | 100% | Conclusion | 81% |
-| Introduction | 100% | Experiments | 62.5% |
-| References | 100% | Methodology | 55% |
-| Results | 99.5% | Discussion | 40.5% |
-| Approach/Method | 95% | Background | 34% |
-
-### 📚 Citation Network Insights
-- **Top Publishers**: IEEE (63,412 refs), arXiv (15,315), ACM (14,626), Springer (4,392)
-- **Most Influential Papers in Corpus**:
-  1. Attention Is All You Need (Vaswani et al.) - 149 citations
-  2. Adam Optimizer (Kingma & Ba) - 140 citations
-  3. ResNet (He et al.) - 126 citations
-  4. Dropout (Srivastava et al.) - 111 citations
-  5. Batch Normalization (Ioffe & Szegedy) - 107 citations
-
-## 🚀 Quick Start
-
-### Prerequisites
+#### Prerequisites
 - Python 3.8+
 - Docker (for Qdrant vector database)
 - Ollama (for local LLM) or API keys for OpenAI/Claude
 
-### Installation
+#### Installation
 ```bash
 # Setup environment
 python -m venv venv && source venv/bin/activate
@@ -87,7 +154,7 @@ python ingest.py
 streamlit run app.py
 ```
 
-## 💡 Usage
+### 💡 Usage
 
 The system provides **5 main interfaces** accessible via Streamlit tabs:
 
@@ -111,57 +178,7 @@ python query.py "What are the main approaches to neural network optimization?"
 
 ## 🏗️ Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                    Streamlit Web UI (app.py)                             │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐     │
-│  │ Article  │ │   Q&A    │ │ Research │ │  Paper   │ │ Article  │     │
-│  │   Gen    │ │ Analysis │ │ Analysis │ │ Explorer │ │ Analysis │     │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘     │
-└──────────────────────────────────────────────────────────────────────────┘
-                                    │
-        ┌───────────────────────────┼───────────────────────────┐
-        ▼                           ▼                           ▼
-┌────────────────────┐   ┌─────────────────────┐   ┌──────────────────────┐
-│ Multi-Layer        │   │  Query Engine       │   │ Analysis Engine      │
-│ Article Generator  │   │  (query.py)         │   │ (analyze_*.py)       │
-│                    │   │                     │   │                      │
-│ • Layer 1: Outline │   │ • Semantic Search   │   │ • Quality Metrics    │
-│ • Layer 2a: Fetch  │   │ • Context Format    │   │ • Citation Analysis  │
-│   External Refs    │   │ • LLM Prompting     │   │ • Pattern Detection  │
-│ • Layer 2b: Draft  │   │ • Source Ranking    │   │ • Theme Extraction   │
-│ • Layer 3: Refine  │   └─────────────────────┘   └──────────────────────┘
-│ • Layer 4: Format  │              │                         │
-└────────────────────┘              │                         │
-         │                          │                         │
-         └──────────────────────────┼─────────────────────────┘
-                                    ▼
-                    ┌───────────────────────────────┐
-                    │   External APIs & Services    │
-                    │  • Semantic Scholar API       │
-                    │  • Reference Integration      │
-                    │  • Metadata Enrichment        │
-                    └───────────────────────────────┘
-                                    │
-                ┌───────────────────┴───────────────────┐
-                ▼                                       ▼
-┌───────────────────────────┐           ┌───────────────────────────┐
-│   Qdrant Vector Store     │           │   LLM APIs (config.py)    │
-│  • 5,634 PDF chunks       │           │  • Ollama (local)         │
-│  • Nomic embeddings       │           │  • OpenAI GPT-4o          │
-│  • Cosine similarity      │           │  • Claude 3.5 Sonnet      │
-│  • Semantic search        │           │  • Token tracking         │
-└───────────────────────────┘           └───────────────────────────┘
-                ▲
-                │
-┌───────────────────────────┐
-│  PDF Ingestor (ingest.py) │
-│  • PyMuPDF extraction     │
-│  • Text chunking          │
-│  • Batch embedding        │
-│  • Progress tracking      │
-└───────────────────────────┘
-```
+![System Architecture](archteture.png)
 
 ## 📁 Project Structure
 
@@ -237,7 +254,7 @@ Roan-IEEE/
 - **OpenAI**: `gpt-4o` (requires API key)
 - **Claude**: `claude-3-5-sonnet-20241022` (requires API key)
 
-##  Performance
+## ⚡ Performance
 
 ### Core Operations
 - **PDF Ingestion**: ~2-5 PDFs/second (depends on PDF size)
