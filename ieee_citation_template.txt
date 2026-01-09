@@ -1,0 +1,32 @@
+
+# IEEE CITATION FORMAT TEMPLATE
+
+## In-Text Citation Rules:
+1. Use square brackets with numbers: [1]
+2. Place AFTER the relevant text, BEFORE punctuation
+3. Multiple citations: [1], [2], [5]
+4. Ranges: [1]-[5]
+5. NO author names in text (only in reference list)
+
+## Reference List Format:
+[1] A. Author, B. Author, and C. Author, "Article title," Journal Name, 
+    vol. X, no. Y, pp. ZZ-ZZ, Month Year, doi: XX.XXXX/XXXXX.
+
+[2] A. Author and B. Author, "Conference paper title," in Proc. Conference 
+    Name, City, Country, Year, pp. ZZ-ZZ.
+
+[3] A. Author, Book Title. City: Publisher, Year.
+
+## Example Article Structure:
+
+Recent advances in machine learning [1] have enabled new approaches to 
+code analysis [2], [3]. Various techniques have been proposed [4]-[7], 
+with deep learning methods showing particular promise [8].
+
+## References
+
+[1] J. Smith and A. Jones, "Machine learning for code analysis," IEEE 
+    Trans. Software Eng., vol. 45, no. 3, pp. 234-245, Mar. 2023.
+
+[2] B. Chen et al., "Deep learning approaches to program understanding," 
+    in Proc. Int. Conf. Software Eng., 2023, pp. 123-134.

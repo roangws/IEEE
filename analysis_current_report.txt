@@ -1,0 +1,62 @@
+============================================================
+RESEARCH LANDSCAPE ANALYSIS REPORT
+============================================================
+
+Total Papers Analyzed: 227
+Number of Research Themes: 5
+
+----------------------------------------
+RESEARCH THEMES
+----------------------------------------
+
+🔹 Detection & Learning
+   Papers: 82 (36.1%)
+   Keywords: detection, based, learning, multi, using
+
+🔹 Learning & Recognition
+   Papers: 11 (4.8%)
+   Keywords: based, learning, recognition, efficient, classification
+
+🔹 Learning
+   Papers: 41 (18.1%)
+   Keywords: learning, using, analysis, models, detection
+
+🔹 Learning
+   Papers: 44 (19.4%)
+   Keywords: learning, based, ai, approach, using
+
+🔹 Learning
+   Papers: 49 (21.6%)
+   Keywords: based, using, learning, data, review
+
+----------------------------------------
+TOP INFLUENTIAL PAPERS
+----------------------------------------
+
+1. Multi-Relay UAV-RIS Digital Twin-Based Framework for User Fa...
+   Authors: Abdulmalik Alwarafy, Naveed Khan, Nasir Saeed, Mus
+   Theme: Learning
+
+2. Diverse Representation Knowledge Distillation for Efficient ...
+   Authors: Andreas Winata, Nur Afny Catur Andryani, Alexander
+   Theme: Learning & Recognition
+
+3. CardioMind: Deep Learning Framework for Stress Detection Usi...
+   Authors: Lynn El Arwadi and Layal Abu Daher
+   Theme: Learning
+
+4. Monte Carlo-Based Strategy for Assessing the Impact of EEG D...
+   Authors: Pierre Sedi Nzakuna, Vincenzo Gallo, Vincenzo Paci
+   Theme: Learning
+
+5. An Explainable AI and Optimized Multi-Branch Convolutional N...
+   Authors: Kamel K. Mohammed, Nadia Dahmani, Rania Ahmed, Ash
+   Theme: Detection & Learning
+
+----------------------------------------
+RESEARCH GAPS & OPPORTUNITIES
+----------------------------------------
+
+⚠️ Under-explored Area
+   'Learning & Recognition' has only 11 papers (4.8%)
+   💡 Consider exploring based, learning, recognition

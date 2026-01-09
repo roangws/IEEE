@@ -1,0 +1,41 @@
+# Ignore large data folders
+downloaded_pdfs/
+data-raw/
+
+# Ignore environment files
+.env
+.venv/
+venv/
+
+# Ignore cache directories
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Ignore model and cache directories
+.cache/
+.hf_cache/
+.latex_cache/
+.ui_cache/
+.qdrant/
+
+# Ignore output files
+output/
+*.log
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore temporary files
+*.tmp
+*.temp

@@ -1,0 +1,4105 @@
+#!/usr/bin/env python3
+"""
+Streamlit Web Interface for Academic Paper Analysis
+Provides Q&A and article synthesis capabilities.
+"""
+
+import os
+
+# CRITICAL: Set Hugging Face cache directories BEFORE any HF imports
+_HF_CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".hf_cache")
+os.makedirs(_HF_CACHE_DIR, exist_ok=True)
+
+# Force all Hugging Face environment variables to use local cache
+os.environ["HF_HOME"] = _HF_CACHE_DIR
+os.environ["HF_HUB_CACHE"] = os.path.join(_HF_CACHE_DIR, "hub")
+os.environ["TRANSFORMERS_CACHE"] = os.path.join(_HF_CACHE_DIR, "transformers")
+os.environ["SENTENCE_TRANSFORMERS_HOME"] = os.path.join(_HF_CACHE_DIR, "sentence_transformers")
+os.environ["HF_TOKEN_PATH"] = os.path.join(_HF_CACHE_DIR, "token")
+os.environ["HUGGINGFACE_HUB_CACHE"] = os.path.join(_HF_CACHE_DIR, "hub")
+# Disable HF telemetry
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+# Set offline mode if needed
+os.environ["HF_HUB_OFFLINE"] = "0"
+
+import json
+import re
+import subprocess
+from datetime import datetime
+from io import BytesIO
+
+import streamlit as st
+import streamlit.components.v1 as components
+from query_with_citations import create_enhanced_article_prompt
+from template import DEFAULT_TEMPLATE
+from config import call_claude, call_openai, call_ollama
+from citation_manager import CitationManager
+from article_analysis_ui import render_article_analysis
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER, TA_LEFT
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib import colors
+from datetime import datetime
+
+# Try to import HTML-to-PDF generator with MathJax (best option - perfect formulas)
+try:
+    from html_mathjax_pdf_generator import HTMLMathJaxPDFGenerator
+    MATHJAX_PDF_AVAILABLE = True
+    print("✅ MathJax PDF generator loaded successfully")
+except Exception as e:
+    MATHJAX_PDF_AVAILABLE = False
+    print(f"⚠️  MathJax PDF generator not available: {e}")
+
+_UI_CACHE_DIR = os.path.join(os.path.dirname(__file__), ".ui_cache")
+os.makedirs(_UI_CACHE_DIR, exist_ok=True)
+
+_UI_CACHE_PATH = os.path.join(_UI_CACHE_DIR, "ui_state.json")
+_UI_CACHE_DELETE = "__DELETE__"
+
+
+def _load_ui_cache():
+    if not os.path.exists(_UI_CACHE_PATH):
+        return None
+    try:
+        with open(_UI_CACHE_PATH, "r") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _save_ui_cache(state: dict):
+    try:
+        os.makedirs(_UI_CACHE_DIR, exist_ok=True)
+
+        existing = _load_ui_cache()
+        if not isinstance(existing, dict):
+            existing = {}
+
+        if not isinstance(state, dict):
+            return
+
+        merged = dict(existing)
+        for k, v in state.items():
+            if v == _UI_CACHE_DELETE:
+                merged[k] = None
+                continue
+            # Do not overwrite persisted values with None unless explicitly deleting.
+            if v is None:
+                merged[k] = merged.get(k)
+            else:
+                merged[k] = v
+
+        with open(_UI_CACHE_PATH, "w") as f:
+            json.dump(merged, f, indent=2)
+    except Exception:
+        pass
+
+
+def _invalidate_steps_after(step_num: int):
+    # Step mapping:
+    # 1: generated_article + local refs
+    # 2: keyword extraction + external reference discovery
+    # 3: integration output
+    # 4: rebuilt references + unified lists
+    # 5: advanced refinement
+    step_keys = {
+        1: [
+            'generated_article', 'base_generated_article', 'article_sources',
+            'citation_map', 'citation_stats', 'reference_list', 'article_topic_stored'
+        ],
+        2: ['extracted_keywords', 'selected_keywords', 'external_references'],
+        3: ['external_enhanced_article'],
+        4: ['unified_citation_map', 'unified_reference_list', 'external_refs_integrated', 'full_enhanced_article'],
+        5: ['refined_article', 'refinement_report', 'last_refinement_error'],
+    }
+
+    keys_to_clear = []
+    for s in sorted(step_keys.keys()):
+        if s > step_num:
+            keys_to_clear.extend(step_keys[s])
+
+    for k in keys_to_clear:
+        st.session_state[k] = None
+
+    if keys_to_clear:
+        _save_ui_cache({k: _UI_CACHE_DELETE for k in keys_to_clear})
+
+
+def _validate_and_fix_latex_delimiters(article: str, log_fn=None) -> str:
+    """Universal LaTeX delimiter validator and fixer.
+    
+    Fixes common malformed patterns:
+    - \\left$ and \\right$ -> \\left( and \\right)
+    - $\\left( and \\right)$ -> \\left( and \\right)
+    - \\left\\frac -> \\left(\\frac
+    - \\rightV -> \\right)V
+    
+    Returns the fixed article.
+    """
+    def _log(msg: str):
+        if callable(log_fn):
+            try:
+                log_fn(msg)
+            except Exception:
+                pass
+    
+    original = article
+    errors_found = []
+    
+    # Check for common malformed patterns
+    if r"\left$" in article:
+        errors_found.append("\\left$")
+    if r"\right$" in article:
+        errors_found.append("\\right$")
+    if r"$\left(" in article:
+        errors_found.append("$\\left(")
+    if r"\right)$" in article and r"\\right)$" not in article:
+        errors_found.append("\\right)$")
+    if r"\left\frac" in article:
+        errors_found.append("\\left\\frac")
+    
+    if errors_found:
+        _log(f"⚠️ Detected {len(errors_found)} LaTeX syntax errors: {', '.join(errors_found[:5])}")
+        _log("🔧 Applying comprehensive auto-fix...")
+        
+        # Fix 1: Replace \left$ and \right$ with proper delimiters
+        article = article.replace("\\left$", "\\left(")
+        article = article.replace("\\right$", "\\right)")
+        
+        # Fix 2: Remove $ that's incorrectly placed with \left or \right
+        article = article.replace("$\\left(", "\\left(")
+        article = article.replace("\\right)$", "\\right)")
+        
+        # Fix 3: Fix \left\frac (missing opening delimiter)
+        article = article.replace("\\left\\frac", "\\left(\\frac")
+        
+        # Fix 4: Apply regex-based fixes (multiple passes for nested issues)
+        for iteration in range(15):
+            before = article
+            article = re.sub(r"\\left\$", r"\\left(", article)
+            article = re.sub(r"\\right\$", r"\\right)", article)
+            article = re.sub(r"\$\\left\(", r"\\left(", article)
+            article = re.sub(r"\\right\)\$(?!\$)", r"\\right)", article)
+            article = re.sub(r"\\left\\frac", r"\\left(\\frac", article)
+            article = re.sub(r"\\right([A-Za-z])", r"\\right)\1", article)
+            if article == before:
+                break
+        
+        # Fix 5: Final string replacements as safety net
+        article = article.replace("\\left$", "\\left(")
+        article = article.replace("\\right$", "\\right)")
+        article = article.replace("$\\left(", "\\left(")
+        
+        # Verify fix worked
+        remaining_errors = []
+        if r"\left$" in article:
+            remaining_errors.append("\\left$")
+        if r"\right$" in article:
+            remaining_errors.append("\\right$")
+        if r"\left\frac" in article:
+            remaining_errors.append("\\left\\frac")
+        
+        if remaining_errors:
+            _log(f"❌ Auto-fix incomplete - {len(remaining_errors)} errors remain: {', '.join(remaining_errors)}")
+            _log("⚠️ Manual review required - some formulas may not render correctly")
+        else:
+            _log("✅ Auto-fix successful - all LaTeX syntax errors corrected")
+            changes = sum(1 for a, b in zip(original, article) if a != b)
+            _log(f"📝 Applied {changes} character corrections")
+    else:
+        _log("✅ No LaTeX syntax errors detected")
+    
+    return article
+
+
+def generate_article_with_openai_chunks(
+    system_msg,
+    sources_list,
+    citation_map,
+    word_count,
+    tone,
+    rigor_level,
+    include_math,
+    include_synthetic_data,
+    topic,
+    log_fn=None,
+):
+    """Generate an article with OpenAI without exceeding TPM limits.
+
+    Key idea: do NOT send the full raw sources to OpenAI. Instead, compress all sources
+    locally into a compact “evidence bank”, then generate the article in multiple
+    smaller OpenAI calls with pacing/retry.
+    """
+
+    import time
+    import tiktoken
+
+    def _log(message: str):
+        if callable(log_fn):
+            try:
+                log_fn(message)
+                return
+            except Exception:
+                pass
+
+    def _get_encoder():
+        try:
+            return tiktoken.encoding_for_model("gpt-4o")
+        except Exception:
+            return tiktoken.encoding_for_model("gpt-4")
+
+    enc = _get_encoder()
+
+    def _tokens(text: str) -> int:
+        return len(enc.encode(text or ""))
+
+    def _call_openai_paced(prompt_text: str, *, max_tokens: int, system: str, tpm_limit: int = 30000):
+        """Call OpenAI with retry + a simple token-per-minute pacer."""
+
+        # Very small, local pacer per run (good enough to stop single huge spikes)
+        now = time.time()
+        window_start = st.session_state.get("_openai_tpm_window_start")
+        used = st.session_state.get("_openai_tpm_used")
+        if window_start is None or used is None or now - window_start >= 60:
+            window_start = now
+            used = 0
+
+        req_tokens = _tokens(prompt_text) + max_tokens
+        # Keep margin under org TPM.
+        safety_limit = int(tpm_limit * 0.80)
+        if used + req_tokens > safety_limit:
+            wait_s = max(1, int(60 - (now - window_start)) + 1)
+            _log(f"⏳ OpenAI TPM pacing: waiting {wait_s}s to stay under rate limits...")
+            time.sleep(wait_s)
+            window_start = time.time()
+            used = 0
+
+        # Retry on 429 by waiting for the next minute window.
+        for attempt in range(3):
+            try:
+                out = call_openai(prompt_text, model="gpt-4o", max_tokens=max_tokens, system=system)
+                used += req_tokens
+                st.session_state["_openai_tpm_window_start"] = window_start
+                st.session_state["_openai_tpm_used"] = used
+                return out
+            except Exception as e:
+                msg = str(e)
+                if "429" in msg or "rate_limit" in msg or "TPM" in msg:
+                    wait_s = 65
+                    _log(f"⚠️ OpenAI rate-limited. Waiting {wait_s}s and retrying (attempt {attempt + 1}/3)...")
+                    time.sleep(wait_s)
+                    window_start = time.time()
+                    used = 0
+                    continue
+                raise
+
+        raise RuntimeError("OpenAI rate-limited repeatedly (TPM). Try again in a minute or use Ollama.")
+
+    def _build_evidence_entries(max_chars_per_source: int = 500) -> list[dict]:
+        """Compress sources locally into small citeable evidence entries.
+
+        Returns a list of dicts: {cite, filename, excerpt}
+        """
+
+        def _extract_key_sentences(text: str, limit: int) -> str:
+            if not text:
+                return ""
+            cleaned = re.sub(r"\s+", " ", text).strip()
+            # Prefer sentences containing numbers/metrics.
+            parts = re.split(r"(?<=[\.!\?])\s+", cleaned)
+            strong = [p for p in parts if re.search(r"\d|%|\bF1\b|\bBLEU\b|\bAUC\b|\baccuracy\b|\bprecision\b|\brecall\b", p, re.IGNORECASE)]
+            weak = [p for p in parts if p not in strong]
+            picked = []
+            total = 0
+            for pool in (strong, weak):
+                for s in pool:
+                    if not s:
+                        continue
+                    s = s.strip()
+                    if not s.endswith((".", "!", "?")):
+                        s += "."
+                    if total + len(s) + 1 > limit:
+                        continue
+                    picked.append(s)
+                    total += len(s) + 1
+                    if total >= limit:
+                        break
+                if total >= limit:
+                    break
+            out = " ".join(picked).strip()
+            if len(out) < min(120, limit) and len(cleaned) > len(out):
+                out = (cleaned[:limit].rsplit(" ", 1)[0] + "...") if len(cleaned) > limit else cleaned
+            return out
+
+        entries = []
+        for src in sources_list:
+            filename = src.get("filename")
+            chunk_text = src.get("chunk_text", "")
+            cite = citation_map.get(filename, 0)
+            excerpt = _extract_key_sentences(chunk_text, max_chars_per_source)
+            if not excerpt:
+                continue
+            entries.append({"cite": cite, "filename": filename, "excerpt": excerpt})
+
+        # Deterministically keep the most informative entries.
+        entries.sort(key=lambda e: len(e.get("excerpt", "")), reverse=True)
+        return entries
+
+    evidence_entries = _build_evidence_entries(max_chars_per_source=500)
+    if not evidence_entries:
+        raise RuntimeError("No usable evidence could be extracted from retrieved sources.")
+
+    _log(
+        f"OpenAI TPM-safe mode: extracted {len(evidence_entries)} compact evidence entries from "
+        f"{len(sources_list)} retrieved chunks"
+    )
+
+    math_note = ""
+    if include_math:
+        math_note = (
+            "Include at least 1 equation if relevant. "
+            "Format equations in display math as $$ ... $$ (NOT \\[ ... \\] and NOT [ ... ]). "
+            "For inline math, use $ ... $ (NOT parentheses like (1 \\times 10^{-4})). "
+            "\n\n"
+            "CRITICAL LATEX RULES - FOLLOW EXACTLY (VIOLATIONS WILL BREAK RENDERING):\n"
+            "1. ALWAYS use \\left( and \\right) for parentheses delimiters\n"
+            "2. NEVER EVER use \\left$ or \\right$ - these are INVALID SYNTAX\n"
+            "3. NEVER mix $ with \\left or \\right - keep them separate\n"
+            "4. CORRECT: $\\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V$\n"
+            "5. WRONG: \\left$\\frac{QK^T}{\\sqrt{d_k}}\\right$ (SYNTAX ERROR)\n"
+            "6. WRONG: $\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right$V (SYNTAX ERROR)\n"
+            "7. CORRECT: $q\\left(\\mathbf{x}_t \\mid \\mathbf{x}_{t-1}\\right)$\n"
+            "8. WRONG: q\\left$\\mathbf{x}_t \\mid \\mathbf{x}_{t-1}\\right$ (SYNTAX ERROR)\n"
+            "9. For fractions: ALWAYS wrap in delimiters: \\left(\\frac{a}{b}\\right)\n"
+            "10. NEVER write \\left\\frac - ALWAYS \\left(\\frac\n"
+            "\n"
+            "REMEMBER: $ is for math mode boundaries, \\left( and \\right) are for delimiters INSIDE math mode.\n"
+            "For matrices/tables in LaTeX, use proper row breaks with \\\\ ."
+        )
+    synth_note = ""
+    if include_synthetic_data:
+        synth_note = (
+            "Include 1 small synthetic results table if helpful (clearly mark as synthetic). "
+            "Prefer Markdown tables over LaTeX arrays for tables. "
+            "DO NOT use \\begin{table}/\\begin{tabular} environments."
+        )
+
+    def _select_evidence(section_hint: str, max_items: int = 14) -> str:
+        """Select a small subset of evidence entries relevant to a section."""
+        hint_terms = set(re.findall(r"[a-zA-Z]{3,}", (topic + " " + section_hint).lower()))
+
+        def score(entry: dict) -> int:
+            text = (entry.get("excerpt") or "").lower()
+            # cheap overlap heuristic
+            return sum(1 for t in hint_terms if t in text)
+
+        scored = [(score(e), e) for e in evidence_entries]
+        scored.sort(key=lambda x: (x[0], len(x[1].get("excerpt", ""))), reverse=True)
+        picked = [e for s, e in scored[:max_items] if e.get("cite")]
+        if not picked:
+            picked = [e for _, e in scored[:max_items]]
+        lines = [f"- [{e['cite']}] {e['filename']}: {e['excerpt']}" for e in picked]
+        return "\n".join(lines)
+
+    # Per-section generation following IEEE template structure
+    # Based on analysis of 5,671 IEEE papers and DEFAULT_TEMPLATE
+    section_specs = [
+        ("Title and Abstract", 
+         "Write ONLY the Title (markdown # ...) and Abstract.\n"
+         "Abstract MUST be 150-200 words summarizing: problem, methods surveyed, key findings, conclusions.\n"
+         "Include key technical contributions and metrics.", 
+         700),
+        
+        ("Introduction", 
+         "Write ONLY the Introduction section (## 1. Introduction).\n"
+         "REQUIRED elements:\n"
+         "- Opening statement establishing research domain and importance\n"
+         "- Problem statement or research gap\n"
+         "- Overview of current state of the field\n"
+         "- Clear articulation of what this synthesis covers\n"
+         "- Roadmap of article structure\n"
+         "Include 8-12 citations.", 
+         900),
+        
+        ("Background and Related Work", 
+         "Write ONLY the Background and Related Work section (## 2. Background and Related Work).\n"
+         "REQUIRED content:\n"
+         "- Historical development and evolution\n"
+         "- Foundational concepts and terminology\n"
+         "- Key prior work and seminal contributions\n"
+         "- Current research landscape\n"
+         "- Research gaps this synthesis addresses\n"
+         "Include 15-25 citations (HEAVY citation section).", 
+         1000),
+        
+        ("Methodology and Approach", 
+         "Write ONLY the Methodology and Approach section (## 3. Methodology and Approach).\n"
+         "REQUIRED content:\n"
+         "- Overview of methodological frameworks\n"
+         "- Detailed description of techniques and algorithms\n"
+         "- Comparison of approaches with strengths/weaknesses\n"
+         "- Evaluation metrics and validation methods\n"
+         "- Datasets, benchmarks, experimental setups\n"
+         "Include 12-18 citations with technical details.", 
+         1100),
+        
+        ("Results and Key Findings", 
+         "Write ONLY the Results and Key Findings section (## 4. Results and Key Findings).\n"
+         "REQUIRED content:\n"
+         "- Quantitative results with specific metrics\n"
+         "- Qualitative findings and observations\n"
+         "- Comparative analysis across studies\n"
+         "- Statistical significance and validation\n"
+         "Include subsections: 4.1 Primary Contributions, 4.2 Supporting Evidence, 4.3 Limitations\n"
+         "Include 8-12 citations.", 
+         1000),
+        
+        ("Discussion and Analysis", 
+         "Write ONLY the Discussion and Analysis section (## 5. Discussion and Analysis).\n"
+         "REQUIRED content:\n"
+         "- Cross-study synthesis and patterns\n"
+         "- Critical evaluation of conflicting findings\n"
+         "- Research trends and trajectory\n"
+         "- Theoretical implications\n"
+         "- Practical applications and impact\n"
+         "Include subsections: 5.1 Comparative Analysis, 5.2 Theoretical Implications, 5.3 Practical Applications\n"
+         "Include 6-10 citations.", 
+         1000),
+        
+        ("Future Research Directions", 
+         "Write ONLY the Future Research Directions section (## 6. Future Research Directions).\n"
+         "REQUIRED content:\n"
+         "- Specific open problems and challenges\n"
+         "- Promising research directions with justification\n"
+         "- Potential methodological improvements\n"
+         "- Emerging applications and use cases\n"
+         "- Cross-disciplinary opportunities\n"
+         "Include 2-4 citations.", 
+         700),
+        
+        ("Conclusion", 
+         "Write ONLY the Conclusion section (## 7. Conclusion).\n"
+         "REQUIRED content:\n"
+         "- Synthesis of main findings\n"
+         "- Assessment of current state of the field\n"
+         "- Key takeaways for researchers and practitioners\n"
+         "- Final thoughts on trajectory and impact\n"
+         "Include 0-2 citations.", 
+         600),
+    ]
+
+    # Word budgets matching IEEE template structure (8 sections)
+    # Based on analysis of 5,671 IEEE papers
+    abstract_words = max(150, min(220, int(word_count * 0.02)))
+    budgets = [
+        abstract_words,                              # Title + Abstract: 2%
+        max(600, int(word_count * 0.12)),           # Introduction: 12%
+        max(600, int(word_count * 0.10)),           # Background: 10%
+        max(1000, int(word_count * 0.18)),          # Methodology: 18%
+        max(1200, int(word_count * 0.22)),          # Results: 22% (longest)
+        max(1000, int(word_count * 0.18)),          # Discussion: 18%
+        max(400, int(word_count * 0.08)),           # Future Directions: 8%
+        max(400, int(word_count * 0.06)),           # Conclusion: 6%
+    ]
+
+    # Keep citation list short; the evidence lines already carry [n].
+    cite_nums = sorted({c for c in citation_map.values() if c})
+    cite_nums_str = ", ".join(str(c) for c in cite_nums[:60])
+
+    # Cost estimate for gpt-4o (approx; may vary by account/region/pricing changes)
+    price_in_per_1m = 5.0
+    price_out_per_1m = 15.0
+
+    total_in_tokens = 0
+    total_out_tokens = 0
+    total_cost_usd = 0.0
+    start_time = time.perf_counter()
+
+    outputs = []
+    for idx, ((section_name, instruction, max_out_tokens), target_words) in enumerate(zip(section_specs, budgets)):
+        evidence_snippet = _select_evidence(section_name, max_items=14)
+        prompt_text = f"""You are writing an IEEE-style academic paper.
+
+Topic: {topic}
+Tone: {tone}
+Rigor level: {rigor_level}/6
+
+CRITICAL:
+- Use IEEE numeric citations like [1], [2], [3].
+- Only cite from available citations: {cite_nums_str}
+- Every paragraph must include at least one citation.
+- Do NOT invent citations.
+
+Task:
+{instruction}
+
+Additional constraints:
+{math_note}
+{synth_note}
+
+Target length for this part: ~{target_words} words.
+
+Evidence bank (compressed from the retrieved sources):
+{evidence_snippet}
+"""
+
+        in_tokens = _tokens(prompt_text)
+        _log(f"OpenAI section '{section_name}': input≈{in_tokens:,} tokens, output_max={max_out_tokens}")
+
+        t0 = time.perf_counter()
+        part = _call_openai_paced(prompt_text, max_tokens=max_out_tokens, system=system_msg)
+        dt = time.perf_counter() - t0
+
+        out_tokens = _tokens(part)
+        total_in_tokens += in_tokens
+        total_out_tokens += out_tokens
+        total_cost_usd += (in_tokens / 1_000_000.0) * price_in_per_1m + (out_tokens / 1_000_000.0) * price_out_per_1m
+
+        _log(f"OpenAI section '{section_name}': output≈{out_tokens:,} tokens, time={dt:.1f}s, est_cost=${total_cost_usd:.4f}")
+        outputs.append(part)
+
+    total_time = time.perf_counter() - start_time
+    _log(f"OpenAI total: input≈{total_in_tokens:,} tokens, output≈{total_out_tokens:,} tokens, time={total_time:.1f}s, est_cost=${total_cost_usd:.4f}")
+
+    article = "\n\n".join(outputs)
+    
+    # POST-GENERATION VALIDATION AND AUTO-FIX
+    _log("🔍 Validating LaTeX syntax...")
+    article = _validate_and_fix_latex_delimiters(article, log_fn=_log)
+    
+    return article
+
+
+def _clear_all_progress():
+    # Clear everything step-related, keep only UI/internal flags.
+    keys = [
+        'answer_result',
+        'generated_article', 'base_generated_article', 'article_sources',
+        'citation_map', 'citation_stats', 'reference_list', 'article_topic_stored',
+        'refined_article', 'refinement_report', 'last_refinement_error',
+        'external_references', 'external_enhanced_article',
+        'extracted_keywords', 'selected_keywords',
+        'unified_citation_map', 'unified_reference_list', 'external_refs_integrated', 'full_enhanced_article',
+    ]
+    for k in keys:
+        st.session_state[k] = None
+    _save_ui_cache({k: _UI_CACHE_DELETE for k in keys})
+
+
+# Page configuration
+st.set_page_config(
+    page_title="Academic Paper Analysis & Generation",
+    page_icon="📚",
+    layout="wide"
+)
+
+# Enable comprehensive debug mode for math rendering
+st.markdown("""
+<script>
+// Enable debug mode
+console.log("🔍 Debug mode enabled for LaTeX rendering");
+
+// Enable KaTeX debug mode
+if (typeof katex !== 'undefined') {
+    // Override KaTeX error handling to show errors in console
+    const originalParseError = katex.ParseError;
+    katex.ParseError = function(message, lexer, position) {
+        console.error("🚨 KaTeX Parse Error:", message, "at position", position);
+        console.error("📝 Context:", lexer.input.substr(Math.max(0, position-50), 100));
+        return new originalParseError(message, lexer, position);
+    };
+    
+    // Log all KaTeX renders
+    const originalRender = katex.render;
+    katex.render = function(expression, element, options) {
+        console.log("🧮 Rendering LaTeX:", expression);
+        try {
+            const result = originalRender.call(this, expression, element, options);
+            console.log("✅ LaTeX rendered successfully");
+            return result;
+        } catch (error) {
+            console.error("❌ LaTeX rendering failed:", error);
+            throw error;
+        }
+    };
+    
+    console.log("🔧 KaTeX debug hooks installed");
+} else {
+    console.warn("⚠️ KaTeX not found - math rendering may not work");
+}
+
+// Monitor for math elements
+const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+        mutation.addedNodes.forEach(function(node) {
+            if (node.nodeType === 1) {
+                if (node.classList && node.classList.contains('katex')) {
+                    console.log("📐 KaTeX element detected:", node);
+                }
+                if (node.classList && node.classList.contains('katex-error')) {
+                    console.error("🚨 KaTeX error element detected:", node);
+                }
+            }
+        });
+    });
+});
+
+observer.observe(document.body, {
+    childList: true,
+    subtree: true
+});
+
+console.log("👁️ DOM observer for math elements installed");
+</script>
+""", unsafe_allow_html=True)
+
+
+
+def generate_qa_pdf(result):
+    """
+    Generate a PDF from Q&A result with improved formatting.
+    
+    Args:
+        result: Dictionary containing 'query', 'answer', and 'sources'
+        
+    Returns:
+        BytesIO object containing the PDF
+    """
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter,
+                           rightMargin=72, leftMargin=72,
+                           topMargin=72, bottomMargin=50)
+    
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Enhanced styles for better formatting
+    styles.add(ParagraphStyle(
+        name='Justify', 
+        alignment=TA_JUSTIFY,
+        fontSize=11,
+        leading=16,
+        spaceAfter=10
+    ))
+    styles.add(ParagraphStyle(
+        name='QuestionBox', 
+        fontSize=12, 
+        leading=18,
+        spaceAfter=20,
+        leftIndent=20,
+        rightIndent=20,
+        borderWidth=1,
+        borderColor='#1f77b4',
+        borderPadding=10,
+        backColor='#f0f8ff'
+    ))
+    styles.add(ParagraphStyle(
+        name='SectionHeading',
+        fontSize=16,
+        leading=20,
+        spaceAfter=15,
+        spaceBefore=20,
+        textColor='#1f77b4',
+        fontName='Helvetica-Bold'
+    ))
+    styles.add(ParagraphStyle(
+        name='AnswerText',
+        fontSize=11,
+        leading=16,
+        alignment=TA_JUSTIFY,
+        spaceAfter=8
+    ))
+    
+    # Add title
+    date_str = datetime.now().strftime("%B %d, %Y at %I:%M %p")
+    title = Paragraph("<b>Q&amp;A Analysis Report</b>", styles['Title'])
+    elements.append(title)
+    elements.append(Spacer(1, 6))
+    elements.append(Paragraph(f"<i>Generated on {date_str}</i>", styles['Normal']))
+    elements.append(Spacer(1, 30))
+    
+    # Add question with box styling
+    elements.append(Paragraph("<b>Question</b>", styles['SectionHeading']))
+    question_text = result.get('query', 'N/A')
+    # Escape XML and preserve formatting
+    question_text = question_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    question_text = question_text.replace('\n', '<br/>')
+    elements.append(Paragraph(question_text, styles['QuestionBox']))
+    elements.append(Spacer(1, 20))
+    
+    # Add answer
+    elements.append(Paragraph("<b>Answer</b>", styles['SectionHeading']))
+    answer_lines = result['answer'].split('\n')
+    
+    for line in answer_lines:
+        line = line.strip()
+        if not line:
+            elements.append(Spacer(1, 8))
+            continue
+        
+        # Handle headers
+        if line.startswith('# '):
+            text = line[2:].strip()
+            elements.append(Paragraph(f"<b>{text}</b>", styles['Heading2']))
+        elif line.startswith('## '):
+            text = line[3:].strip()
+            elements.append(Paragraph(f"<b>{text}</b>", styles['Heading3']))
+        else:
+            # Escape XML special characters
+            text = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Convert markdown bold to PDF bold
+            text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+            # Convert markdown italic to PDF italic
+            text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
+            
+            elements.append(Paragraph(text, styles['AnswerText']))
+    
+    # Add page break before sources
+    elements.append(Spacer(1, 20))
+    elements.append(PageBreak())
+    
+    # Add sources section
+    elements.append(Paragraph("<b>Sources and References</b>", styles['SectionHeading']))
+    elements.append(Spacer(1, 15))
+    
+    # Load metadata
+    metadata_path = "pdf_metadata.json"
+    metadata = {}
+    if os.path.exists(metadata_path):
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+    
+    for i, source in enumerate(result['sources'], 1):
+        filename = source['filename']
+        paper_meta = metadata.get(filename, {})
+        title = paper_meta.get('title', 'Unknown Title')
+        authors = paper_meta.get('authors', 'Unknown Authors')
+        year = paper_meta.get('year', 'N/A')
+        score = source.get('score', 0.0)
+        
+        # Format reference with better spacing
+        ref_text = f"<b>[{i}]</b> {authors} ({year}). <i>{title}</i>"
+        elements.append(Paragraph(ref_text, styles['Normal']))
+        elements.append(Paragraph(f"<font size=9>Relevance: {score:.2%} | File: {filename}</font>", styles['Normal']))
+        elements.append(Spacer(1, 12))
+    
+    # Build PDF
+    doc.build(elements)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    
+    return pdf_bytes
+
+
+def generate_ieee_refined_pdf(article_text: str, fallback_title: str) -> bytes:
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=72,
+        leftMargin=72,
+        topMargin=54,
+        bottomMargin=54,
+    )
+
+    styles = getSampleStyleSheet()
+    styles.add(
+        ParagraphStyle(
+            name="IeeeTitle",
+            fontName="Times-Bold",
+            fontSize=16,
+            leading=18,
+            alignment=TA_CENTER,
+            spaceAfter=16,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="IeeeH2",
+            fontName="Times-Bold",
+            fontSize=12,
+            leading=14,
+            spaceBefore=10,
+            spaceAfter=6,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="IeeeH3",
+            fontName="Times-Bold",
+            fontSize=11,
+            leading=13,
+            spaceBefore=8,
+            spaceAfter=4,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="IeeeBody",
+            fontName="Times-Roman",
+            fontSize=10.5,
+            leading=13.5,
+            alignment=TA_JUSTIFY,
+            spaceAfter=6,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="IeeeRef",
+            fontName="Times-Roman",
+            fontSize=9.5,
+            leading=12,
+            alignment=TA_LEFT,
+            leftIndent=18,
+            firstLineIndent=-18,
+            spaceAfter=6,
+        )
+    )
+
+    def _escape_xml(t: str) -> str:
+        return (t or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    def _md_inline_to_rl(t: str) -> str:
+        t = _escape_xml(t)
+        t = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", t)
+        t = re.sub(r"\*(.+?)\*", r"<i>\1</i>", t)
+        return t
+
+    cm = CitationManager()
+    extracted_title, body = cm.extract_title(article_text or "")
+    title_text = extracted_title if extracted_title and extracted_title != "Research Article" else (fallback_title or "Research Article")
+
+    elements = []
+    elements.append(Paragraph(_md_inline_to_rl(title_text), styles["IeeeTitle"]))
+
+    lines = (body or "").split("\n")
+    in_refs = False
+    ref_lines = []
+    for raw in lines:
+        line = (raw or "").rstrip()
+        stripped = line.strip()
+
+        if stripped.lower().startswith("## references"):
+            in_refs = True
+            elements.append(PageBreak())
+            elements.append(Paragraph("References", styles["IeeeH2"]))
+            continue
+
+        if in_refs:
+            ref_lines.append(line)
+            continue
+
+        if not stripped:
+            elements.append(Spacer(1, 8))
+            continue
+
+        if stripped.startswith("## "):
+            elements.append(Paragraph(_md_inline_to_rl(stripped[3:].strip()), styles["IeeeH2"]))
+            continue
+        if stripped.startswith("### "):
+            elements.append(Paragraph(_md_inline_to_rl(stripped[4:].strip()), styles["IeeeH3"]))
+            continue
+
+        elements.append(Paragraph(_md_inline_to_rl(stripped), styles["IeeeBody"]))
+
+    if ref_lines:
+        refs = []
+        cur = []
+        for raw in ref_lines:
+            if not raw.strip():
+                if cur:
+                    refs.append(" ".join([x.strip() for x in cur if x.strip()]))
+                    cur = []
+                continue
+            cur.append(raw)
+        if cur:
+            refs.append(" ".join([x.strip() for x in cur if x.strip()]))
+
+        for r in refs:
+            if not r.strip():
+                continue
+            elements.append(Paragraph(_md_inline_to_rl(r.strip()), styles["IeeeRef"]))
+
+    doc.build(elements)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes
+
+
+def _normalize_article_for_rendering(text: str) -> str:
+    """Normalize LaTeX/Markdown for reliable rendering in both webpage and PDF."""
+    t = text or ""
+    
+    # CRITICAL PRE-PROCESSING: Fix malformed LaTeX delimiters FIRST
+    # This is the last line of defense before rendering
+    
+    # Fix 1: Replace \left$ and \right$ with proper delimiters
+    t = t.replace("\\left$", "\\left(")
+    t = t.replace("\\right$", "\\right)")
+    
+    # Fix 2: Remove $ that's incorrectly placed with \left or \right
+    t = t.replace("$\\left(", "\\left(")
+    t = t.replace("\\right)$", "\\right)")
+    
+    # Fix 3: Fix \left\frac (missing opening delimiter)
+    t = t.replace("\\left\\frac", "\\left(\\frac")
+    
+    # Fix 4: Apply regex-based fixes (multiple aggressive passes)
+    for _ in range(20):  # More passes for deeply nested issues
+        before = t
+        t = re.sub(r"\\left\$", r"\\left(", t)
+        t = re.sub(r"\\right\$", r"\\right)", t)
+        t = re.sub(r"\$\\left\(", r"\\left(", t)
+        t = re.sub(r"\\right\)\$(?!\$)", r"\\right)", t)  # Don't break $$
+        t = re.sub(r"\\left\\frac", r"\\left(\\frac", t)
+        # Fix missing closing delimiter before letter (e.g., \rightV -> \right)V)
+        t = re.sub(r"\\right([A-Za-z])", r"\\right)\1", t)
+        if t == before:
+            break  # No more changes
+    
+    # Fix 5: Final safety net - direct string replacements
+    t = t.replace("\\left$", "\\left(")
+    t = t.replace("\\right$", "\\right)")
+    t = t.replace("$\\left(", "\\left(")
+    
+    # Now proceed with normal normalization
+    t = t.replace('\\[', '$$').replace('\\]', '$$')
+    # DO NOT replace \( and \) - they are used in \left( and \right)
+    # Only replace them if they're standalone (not part of \left or \right)
+    # Use regex to avoid breaking \left( and \right(
+    # Actually, skip this entirely - modern markdown/KaTeX handles \( and \) fine
+    # t = t.replace('\\(', '$').replace('\\)', '$')
+    
+    # STEP 1: Convert LaTeX tables/arrays to Markdown tables FIRST (before other processing)
+    def _strip_latex(x: str) -> str:
+        if not x:
+            return ""
+        x = re.sub(r"\\textbf\{([^\}]*)\}", r"\1", x)
+        x = re.sub(r"\\text\{([^\}]*)\}", r"\1", x)
+        x = x.replace("\\%", "%")
+        return x.strip()
+    
+    def _array_to_markdown(body: str) -> str:
+        """Convert LaTeX array body to Markdown table."""
+        body = (body or "").replace("\\hline", "")
+        # Split on \\ or \ followed by newline (row separator in LaTeX)
+        # Handle both \\ and single \ at end of line
+        rows_raw = []
+        for line in body.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            # Remove trailing backslashes
+            line = re.sub(r'\\\s*$', '', line)
+            if line:
+                rows_raw.append(line)
+        
+        rows = []
+        for r in rows_raw:
+            r = _strip_latex(r)
+            # Split on & (column separator)
+            cols = [_strip_latex(c.strip()) for c in r.split('&')]
+            if any(cols):
+                rows.append(cols)
+        if not rows:
+            return ""
+        max_cols = max(len(r) for r in rows)
+        rows = [r + [""] * (max_cols - len(r)) for r in rows]
+        header = rows[0]
+        sep = ["---"] * max_cols
+        out = [
+            "| " + " | ".join(header) + " |",
+            "| " + " | ".join(sep) + " |",
+        ]
+        for r in rows[1:]:
+            out.append("| " + " | ".join(r) + " |")
+        return "\n".join(out)
+    
+    def _tabular_to_markdown(body: str) -> str:
+        """Convert LaTeX tabular body to Markdown table."""
+        return _array_to_markdown(body)
+    
+    def _replace_table(m: 're.Match') -> str:
+        caption = _strip_latex(m.group('caption') or "")
+        tab = _tabular_to_markdown(m.group('tabular') or "")
+        if not tab:
+            return m.group(0)
+        return f"**{caption}**\n\n{tab}" if caption else tab
+    
+    t = re.sub(
+        r"\\begin\{table\*?\}[\s\S]*?\\caption\{(?P<caption>[\s\S]*?)\}[\s\S]*?\\begin\{tabular\}\{[\s\S]*?\}\s*(?P<tabular>[\s\S]*?)\\end\{tabular\}[\s\S]*?\\end\{table\*?\}",
+        _replace_table,
+        t,
+    )
+    t = re.sub(
+        r"\\begin\{tabular\}\{[\s\S]*?\}\s*(?P<tabular>[\s\S]*?)\\end\{tabular\}",
+        lambda m: _tabular_to_markdown(m.group('tabular') or "") or m.group(0),
+        t,
+    )
+    
+    # Convert standalone \begin{array} blocks to Markdown tables
+    def _replace_array(m: 're.Match') -> str:
+        body = m.group('body') or ""
+        md_table = _array_to_markdown(body)
+        return md_table if md_table else m.group(0)
+    
+    t = re.sub(
+        r"\\begin\{array\}\{[^\}]*\}\s*(?P<body>[\s\S]*?)\\end\{array\}",
+        _replace_array,
+        t,
+    )
+    
+    # STEP 2: Fix delimiter errors (\left$, \right$, \left\frac, etc.)
+    # Use BOTH string replacement AND regex for maximum coverage
+    
+    # Direct string replacements (most reliable)
+    t = t.replace("\\left$", "\\left(")
+    t = t.replace("\\right$", "\\right)")
+    t = t.replace("$\\left(", "\\left(")
+    t = t.replace("\\right)$", "\\right)")
+    t = t.replace("\\left\\frac", "\\left(\\frac")
+    
+    # Regex for more complex patterns (run multiple times)
+    for _ in range(10):
+        t = re.sub(r"\\left\$", r"\\left(", t)
+        t = re.sub(r"\\right\$", r"\\right)", t)
+        t = re.sub(r"\$\\left\(", r"\\left(", t)
+        t = re.sub(r"\\right\)\$", r"\\right)", t)
+        t = re.sub(r"\\left\\frac", r"\\left(\\frac", t)
+        t = re.sub(r"\\right([A-Za-z])", r"\\right)\\1", t)
+        # Also fix \rightI, \rightV etc (missing closing paren before letter)
+        t = re.sub(r"\\right([A-Z])", r"\\right)\\1", t)
+    
+    # Final safety: direct string replacement again
+    t = t.replace("\\left$", "\\left(")
+    t = t.replace("\\right$", "\\right)")
+    
+    # STEP 3: Convert equation/align environments to $$ blocks
+    t = re.sub(r"\\begin\{equation\*?\}\s*([\s\S]*?)\s*\\end\{equation\*?\}", r"$$\n\1\n$$", t)
+    t = re.sub(r"\\begin\{align\*?\}\s*([\s\S]*?)\s*\\end\{align\*?\}", r"$$\n\\begin{aligned}\n\1\n\\end{aligned}\n$$", t)
+    t = re.sub(r"\\begin\{aligned\}\s*([\s\S]*?)\s*\\end\{aligned\}", r"$$\n\\begin{aligned}\n\1\n\\end{aligned}\n$$", t)
+    
+    # STEP 4: Inline parenthesized math -> $...$
+    # CRITICAL: Do NOT match \left( and \right) - these are LaTeX delimiters, not regular parentheses!
+    # These patterns were creating \left$...\right$ errors by wrapping \left(...\right) content
+    # Commenting out these problematic patterns - they cause more harm than good
+    # t = re.sub(r"\(([^\n\r\(\)]*\\(?:times|frac|sqrt|cdot|log|ln|exp)[^\n\r\(\)]*)\)", r"$\1$", t)
+    # t = re.sub(r"\(([^\n\r\(\)]*\^\{[^\}]+\}[^\n\r\(\)]*)\)", r"$\1$", t)
+    # t = re.sub(r"\(([^\n\r\(\)]*_\{[^\}]+\}[^\n\r\(\)]*)\)", r"$\1$", t)
+    
+    # STEP 5: Fix bare LaTeX formulas (missing $ delimiters)
+    # This is critical for PDF generation - bare LaTeX won't render
+    # Simple approach: If a line contains LaTeX commands but no $ delimiters, wrap the whole line
+    
+    def fix_bare_latex_lines(text):
+        """Wrap lines containing bare LaTeX in display math."""
+        lines = text.split('\n')
+        fixed_lines = []
+        i = 0
+        
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+            
+            # Skip empty lines, tables, and lines already in math mode
+            if not stripped or '|' in line or stripped.startswith('$$') or stripped.startswith('#'):
+                fixed_lines.append(line)
+                i += 1
+                continue
+            
+            # Check if line has LaTeX commands
+            has_latex = bool(re.search(r'\\(?:left|right|frac|sqrt|mathbf|mathcal|text|mathrm|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|sigma|omega|sum|int|prod|lim|infty|partial|nabla|times|cdot)', line))
+            
+            if has_latex:
+                # Count $ in the line
+                dollar_count = line.count('$')
+                
+                # If no $ at all, this is bare LaTeX
+                if dollar_count == 0:
+                    # Check if this is part of a multi-line formula
+                    # Look ahead to see if next lines also have bare LaTeX
+                    formula_lines = [stripped]
+                    j = i + 1
+                    while j < len(lines):
+                        next_line = lines[j].strip()
+                        if not next_line:
+                            break
+                        next_has_latex = bool(re.search(r'\\(?:left|right|frac|sqrt|mathbf|mathcal|alpha|beta|gamma)', next_line))
+                        next_has_dollar = '$' in next_line
+                        if next_has_latex and not next_has_dollar:
+                            formula_lines.append(next_line)
+                            j += 1
+                        else:
+                            break
+                    
+                    # Wrap the entire multi-line formula
+                    formula = '\n'.join(formula_lines)
+                    fixed_lines.append(f"$$\n{formula}\n$$")
+                    i = j  # Skip the lines we just processed
+                    continue
+                
+                # If odd number of $, there's an unclosed $ - fix it
+                if dollar_count % 2 == 1:
+                    # Find where the $ is and try to close the math mode properly
+                    if '$' in line:
+                        # Find the first $ position (opening delimiter)
+                        first_dollar_pos = line.find('$')
+                        # Check if there's LaTeX after it
+                        after_dollar = line[first_dollar_pos+1:]
+                        if re.search(r'\\(?:left|right|mathbf|mathcal)', after_dollar):
+                            # There's LaTeX after the $, need to close it
+                            # Find \right) followed by comma or other punctuation (with optional whitespace)
+                            match = re.search(r'(\\right[)\]])(\s*[,;.])', after_dollar)
+                            if match:
+                                # Insert $ right after \right) and before the punctuation
+                                insert_pos = first_dollar_pos + 1 + match.start(2)
+                                fixed_line = line[:insert_pos] + '$' + line[insert_pos:]
+                                fixed_lines.append(fixed_line)
+                                i += 1
+                                continue
+            
+            # No changes needed
+            fixed_lines.append(line)
+            i += 1
+        
+        return '\n'.join(fixed_lines)
+    
+    t = fix_bare_latex_lines(t)
+    
+    # STEP 6: Wrap remaining bare LaTeX equation lines in $$...$$
+    new_lines = []
+    for line in t.split('\n'):
+        raw = line
+        stripped = raw.strip()
+        # Skip if already has delimiters or is a table row
+        if '$' in stripped or '|' in stripped:
+            new_lines.append(raw)
+            continue
+        # Check if line looks like a bare LaTeX equation
+        has_latex = any(cmd in stripped for cmd in ['\\frac', '\\sqrt', '\\text{', '\\mathrm{', '\\left', '\\right', 'Attention('])
+        if has_latex:
+            raw = f"$$\n{stripped}\n$$"
+        new_lines.append(raw)
+    t = "\n".join(new_lines)
+    
+    return t
+
+
+def generate_article_pdf(article_text, topic, citation_map, sources):
+    """
+    Generate a PDF from the article text with proper formatting.
+    Uses LaTeX-native PDF generation if available (perfect formulas),
+    falls back to ReportLab (text-based formulas) if not.
+    
+    Args:
+        article_text: The markdown article text
+        topic: The article topic/title (fallback)
+        citation_map: Dictionary mapping filenames to citation numbers
+        sources: List of source documents
+        
+    Returns:
+        BytesIO object containing the PDF
+    """
+    # Try HTML-to-PDF with MathJax (perfect formula rendering)
+    if MATHJAX_PDF_AVAILABLE:
+        try:
+            # First normalize the article to fix any LaTeX issues
+            normalized_article = _normalize_article_for_rendering(article_text)
+            
+            generator = HTMLMathJaxPDFGenerator()
+            # Extract title from article
+            citation_manager = CitationManager()
+            extracted_title, _ = citation_manager.extract_title(article_text)
+            final_title = extracted_title if extracted_title != "Research Article" else topic
+            
+            # Generate PDF with MathJax rendering
+            pdf_buffer = generator.generate_pdf(normalized_article, final_title)
+            return pdf_buffer
+        except Exception as e:
+            # Fall back to ReportLab if MathJax PDF fails
+            print(f"MathJax PDF generation failed, using ReportLab: {e}")
+            pass
+    
+    # ReportLab fallback (original implementation)
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter,
+                           rightMargin=72, leftMargin=72,
+                           topMargin=72, bottomMargin=18)
+    
+    # Container for the 'Flowable' objects
+    elements = []
+    
+    # Define styles
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='Justify', alignment=TA_JUSTIFY))
+    styles.add(ParagraphStyle(name='ArticleTitle', 
+                             fontSize=18, 
+                             leading=22,
+                             alignment=TA_CENTER,
+                             spaceAfter=30))
+    styles.add(ParagraphStyle(name='SectionHeading',
+                             fontSize=14,
+                             leading=18,
+                             spaceAfter=12,
+                             spaceBefore=12,
+                             textColor='#1f77b4'))
+    styles.add(ParagraphStyle(
+        name='MathBlock',
+        fontName='Courier',
+        fontSize=9,
+        leading=11,
+        alignment=TA_LEFT,
+        spaceBefore=6,
+        spaceAfter=6,
+    ))
+
+    # _normalize_article_for_rendering is now a module-level function (defined above)
+    
+    # Extract actual title from article
+    citation_manager = CitationManager()
+    extracted_title, article_without_title = citation_manager.extract_title(article_text)
+    
+    # Use extracted title, fallback to topic if extraction failed
+    final_title = extracted_title if extracted_title != "Research Article" else topic
+    
+    # Add title
+    title = Paragraph(f"<b>{final_title}</b>", styles['ArticleTitle'])
+    elements.append(title)
+    elements.append(Spacer(1, 12))
+    
+    # Use article without the title line to avoid duplication
+    article_text = _normalize_article_for_rendering(article_without_title)
+    
+    # Add generation info
+    date_str = datetime.now().strftime("%B %d, %Y")
+    info = Paragraph(f"<i>Generated on {date_str}</i>", styles['Normal'])
+    elements.append(info)
+    elements.append(Spacer(1, 24))
+    
+    # Process article text - convert markdown to PDF-friendly format
+    lines = article_text.split('\n')
+
+    def _flush_table(table_rows: list[list[str]]):
+        if not table_rows:
+            return
+        # Use first row as header
+        data = table_rows
+        tbl = Table(data, hAlign='LEFT')
+        tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ]))
+        elements.append(tbl)
+        elements.append(Spacer(1, 10))
+
+    in_math_block = False
+    math_lines: list[str] = []
+    in_md_table = False
+    table_rows: list[list[str]] = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            if in_md_table:
+                _flush_table(table_rows)
+                in_md_table = False
+                table_rows = []
+            if in_math_block:
+                # close math block
+                math_text = "\n".join(math_lines).strip()
+                math_text = math_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                elements.append(Paragraph(math_text, styles['MathBlock']))
+                elements.append(Spacer(1, 6))
+                in_math_block = False
+                math_lines = []
+            elements.append(Spacer(1, 12))
+            continue
+
+        # Handle $$ math blocks - render as formatted text (images causing API errors)
+        if line.strip() == '$$':
+            if in_math_block:
+                math_text = "\n".join(math_lines).strip()
+                # Format as readable math text
+                math_text = math_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                # Add some formatting to make it stand out
+                elements.append(Spacer(1, 6))
+                elements.append(Paragraph(f"<i>{math_text}</i>", styles['MathBlock']))
+                elements.append(Spacer(1, 6))
+                in_math_block = False
+                math_lines = []
+            else:
+                if in_md_table:
+                    _flush_table(table_rows)
+                    in_md_table = False
+                    table_rows = []
+                in_math_block = True
+                math_lines = []
+            continue
+
+        if in_math_block:
+            math_lines.append(line)
+            continue
+
+        # Handle Markdown tables
+        if line.startswith('|') and '|' in line[1:]:
+            # skip separator line
+            if set(line.replace('|', '').strip()) <= set('-: '):
+                continue
+            cols = [c.strip() for c in line.strip('|').split('|')]
+            if not in_md_table:
+                in_md_table = True
+                table_rows = []
+            table_rows.append(cols)
+            continue
+
+        if in_md_table:
+            _flush_table(table_rows)
+            in_md_table = False
+            table_rows = []
+            
+        # Handle headers
+        if line.startswith('# '):
+            text = line[2:].strip()
+            elements.append(Paragraph(f"<b>{text}</b>", styles['SectionHeading']))
+        elif line.startswith('## '):
+            text = line[3:].strip()
+            elements.append(Paragraph(f"<b>{text}</b>", styles['Heading2']))
+        elif line.startswith('### '):
+            text = line[4:].strip()
+            elements.append(Paragraph(f"<b>{text}</b>", styles['Heading3']))
+        # Handle bold/italic
+        else:
+            # Escape XML special characters
+            text = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Convert markdown bold to PDF bold
+            text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+            # Convert markdown italic to PDF italic
+            text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
+
+            # Handle inline math - just strip $ and show as italic text
+            inline_math_pattern = r'\$([^\$]+)\$'
+            text = re.sub(inline_math_pattern, r'<i>\1</i>', text)
+            
+            # Clean up any remaining $ symbols
+            text = text.replace('$$', '')
+            text = text.replace('$', '')
+            
+            elements.append(Paragraph(text, styles['Justify']))
+            elements.append(Spacer(1, 6))
+
+    if in_md_table:
+        _flush_table(table_rows)
+    if in_math_block:
+        math_text = "\n".join(math_lines).strip()
+        math_text = math_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        elements.append(Paragraph(math_text, styles['MathBlock']))
+        elements.append(Spacer(1, 6))
+    
+    # Add page break before references
+    elements.append(PageBreak())
+    
+    # Add sources section with metadata
+    elements.append(Paragraph("<b>Sources and References</b>", styles['SectionHeading']))
+    elements.append(Spacer(1, 12))
+    
+    # Load metadata
+    metadata_path = "pdf_metadata.json"
+    metadata = {}
+    if os.path.exists(metadata_path):
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+    
+    # Get cited papers
+    number_to_filename = {num: filename for filename, num in citation_map.items()}
+    for num in sorted(number_to_filename.keys()):
+        filename = number_to_filename[num]
+        paper_meta = metadata.get(filename, {})
+        title = paper_meta.get('title', 'Unknown Title')
+        authors = paper_meta.get('authors', 'Unknown Authors')
+        year = paper_meta.get('year', 'N/A')
+        
+        ref_text = f"<b>[{num}]</b> {authors} ({year}). <i>{title}</i>. {filename}"
+        elements.append(Paragraph(ref_text, styles['Normal']))
+        elements.append(Spacer(1, 8))
+    
+    # Build PDF
+    doc.build(elements)
+    
+    # Get the value of the BytesIO buffer
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    
+    return pdf_bytes
+
+
+def init_session_state():
+    """Initialize session state variables."""
+    if '_ui_cache_loaded' not in st.session_state:
+        st.session_state._ui_cache_loaded = False
+    if 'answer_result' not in st.session_state:
+        st.session_state.answer_result = None
+    if 'generated_article' not in st.session_state:
+        st.session_state.generated_article = None
+    if 'article_sources' not in st.session_state:
+        st.session_state.article_sources = None
+    if 'citation_map' not in st.session_state:
+        st.session_state.citation_map = None
+    if 'citation_stats' not in st.session_state:
+        st.session_state.citation_stats = None
+    if 'reference_list' not in st.session_state:
+        st.session_state.reference_list = None
+    if 'article_topic_stored' not in st.session_state:
+        st.session_state.article_topic_stored = None
+    if 'refinement_report' not in st.session_state:
+        st.session_state.refinement_report = None
+    if 'base_generated_article' not in st.session_state:
+        st.session_state.base_generated_article = None
+    if 'generated_article_pdf_bytes' not in st.session_state:
+        st.session_state.generated_article_pdf_bytes = None
+    if 'generated_article_pdf_sig' not in st.session_state:
+        st.session_state.generated_article_pdf_sig = None
+    if 'refined_article_pdf_bytes' not in st.session_state:
+        st.session_state.refined_article_pdf_bytes = None
+    if 'refined_article_pdf_sig' not in st.session_state:
+        st.session_state.refined_article_pdf_sig = None
+    if 'refined_article' not in st.session_state:
+        st.session_state.refined_article = None
+    if 'last_refinement_error' not in st.session_state:
+        st.session_state.last_refinement_error = None
+    if 'external_references' not in st.session_state:
+        st.session_state.external_references = None
+    if 'enable_web_search' not in st.session_state:
+        st.session_state.enable_web_search = False
+    if 'external_enhanced_article' not in st.session_state:
+        st.session_state.external_enhanced_article = None
+    if 'extracted_keywords' not in st.session_state:
+        st.session_state.extracted_keywords = []
+    if 'selected_keywords' not in st.session_state:
+        st.session_state.selected_keywords = []
+    if 'unified_citation_map' not in st.session_state:
+        st.session_state.unified_citation_map = None
+    if 'unified_reference_list' not in st.session_state:
+        st.session_state.unified_reference_list = None
+    if 'external_refs_integrated' not in st.session_state:
+        st.session_state.external_refs_integrated = None
+    if 'full_enhanced_article' not in st.session_state:
+        st.session_state.full_enhanced_article = None
+
+    if not st.session_state._ui_cache_loaded:
+        cached = _load_ui_cache()
+        if isinstance(cached, dict):
+            if st.session_state.answer_result is None and cached.get('answer_result') is not None:
+                st.session_state.answer_result = cached.get('answer_result')
+            if st.session_state.generated_article is None and cached.get('generated_article') is not None:
+                st.session_state.generated_article = cached.get('generated_article')
+                st.session_state.base_generated_article = cached.get('base_generated_article')
+                st.session_state.article_sources = cached.get('article_sources')
+                if cached.get('citation_map') is not None:
+                    st.session_state.citation_map = cached.get('citation_map')
+                if cached.get('citation_stats') is not None:
+                    st.session_state.citation_stats = cached.get('citation_stats')
+                if cached.get('reference_list') is not None:
+                    st.session_state.reference_list = cached.get('reference_list')
+                st.session_state.article_topic_stored = cached.get('article_topic_stored')
+                st.session_state.refined_article = cached.get('refined_article')
+                st.session_state.refinement_report = cached.get('refinement_report')
+                if cached.get('external_references') is not None:
+                    from external_reference_fetcher import ExternalReference
+                    ext_refs_data = cached.get('external_references', [])
+                    if isinstance(ext_refs_data, list):
+                        st.session_state.external_references = [
+                            ExternalReference.from_dict(ref) if isinstance(ref, dict) else ref
+                            for ref in ext_refs_data
+                        ]
+                if cached.get('external_enhanced_article') is not None:
+                    st.session_state.external_enhanced_article = cached.get('external_enhanced_article')
+                if cached.get('extracted_keywords') is not None:
+                    st.session_state.extracted_keywords = cached.get('extracted_keywords')
+                if cached.get('selected_keywords') is not None:
+                    st.session_state.selected_keywords = cached.get('selected_keywords')
+                if cached.get('unified_citation_map') is not None:
+                    st.session_state.unified_citation_map = cached.get('unified_citation_map')
+                if cached.get('unified_reference_list') is not None:
+                    st.session_state.unified_reference_list = cached.get('unified_reference_list')
+                if cached.get('external_refs_integrated') is not None:
+                    from external_reference_fetcher import ExternalReference
+                    _ext_int = cached.get('external_refs_integrated')
+                    if isinstance(_ext_int, list):
+                        st.session_state.external_refs_integrated = [
+                            ExternalReference.from_dict(r) if isinstance(r, dict) else r
+                            for r in _ext_int
+                        ]
+                    else:
+                        st.session_state.external_refs_integrated = _ext_int
+                if cached.get('full_enhanced_article') is not None:
+                    st.session_state.full_enhanced_article = cached.get('full_enhanced_article')
+        st.session_state._ui_cache_loaded = True
+
+
+def render_header():
+    """Render the page header."""
+    st.title("📚 Academic Paper Analysis & Generation")
+    st.markdown("""
+    Analyze 5,000+ academic papers using AI-powered semantic search and synthesis.
+    Ask questions or generate comprehensive articles based on the research literature.
+    """)
+    st.divider()
+
+
+def render_analysis_section():
+    """Render the Q&A analysis section."""
+    st.header("🔍 Section 1: Paper Analysis & Q&A")
+    st.markdown("Ask questions about your academic papers and get AI-powered answers with citations.")
+    
+    # Query input
+    query = st.text_input(
+        "Ask a question about your papers:",
+        placeholder="e.g., What are the main approaches to neural network optimization?",
+        key="query_input"
+    )
+    
+    # Model selection
+    model_col1, model_col2 = st.columns([1, 2])
+    with model_col1:
+        selected_model = st.selectbox(
+            "Select LLM Model:",
+            ["Ollama (Local)", "Claude Sonnet 3.5", "Claude Opus", "OpenAI GPT-4o", "OpenAI GPT-4o-mini"],
+            key="qa_model",
+            help="Choose the LLM for answering. Ollama runs locally, others use cloud APIs."
+        )
+    
+    # Advanced options in expander
+    with st.expander("⚙️ Advanced Options"):
+        st.markdown("**Retrieval Settings** - Increase for more in-depth research")
+        col1, col2 = st.columns(2)
+        with col1:
+            top_k = st.slider("Number of sources to retrieve", 10, 100, 50, 5, key="qa_top_k",
+                            help="More sources = more comprehensive research. Recommended: 50-75 for detailed analysis")
+        with col2:
+            temperature = st.slider("Response creativity", 0.0, 1.0, 0.7, 0.1, key="qa_temp",
+                                  help="Lower = more factual, Higher = more creative")
+    
+    # Submit button
+    if st.button("🔍 Search", type="primary", width='stretch'):
+        if not query:
+            st.warning("Please enter a question.")
+        else:
+            # Get active collection
+            collection = st.session_state.get('active_collection', 'academic_papers_100_specter')
+            with st.spinner(f"Searching {collection} with {selected_model}..."):
+                from query import QueryEngine
+                engine = QueryEngine(collection_name=collection)
+                
+                # Map model selection to actual model
+                model_map = {
+                    "Ollama (Local)": "ollama",
+                    "Claude Sonnet 3.5": "claude_sonnet",
+                    "Claude Opus": "claude_opus",
+                    "OpenAI GPT-4o": "openai_gpt4o",
+                    "OpenAI GPT-4o-mini": "openai_gpt4o_mini"
+                }
+                
+                model_type = model_map.get(selected_model, "ollama")
+                
+                try:
+                    result = engine.search_and_answer(query, top_k=top_k, temperature=temperature, model_type=model_type)
+                    st.session_state.answer_result = result
+                    ext_refs_serialized = None
+                    if st.session_state.get('external_references'):
+                        ext_refs_serialized = [
+                            ref.to_dict() if hasattr(ref, 'to_dict') else ref
+                            for ref in st.session_state.external_references
+                        ]
+                    _save_ui_cache({
+                        'answer_result': st.session_state.answer_result,
+                        'generated_article': st.session_state.generated_article,
+                        'base_generated_article': st.session_state.base_generated_article,
+                        'article_sources': st.session_state.article_sources,
+                        'citation_map': st.session_state.get('citation_map'),
+                        'citation_stats': st.session_state.get('citation_stats'),
+                        'reference_list': st.session_state.get('reference_list'),
+                        'article_topic_stored': st.session_state.get('article_topic_stored'),
+                        'refined_article': st.session_state.get('refined_article'),
+                        'refinement_report': st.session_state.get('refinement_report'),
+                        'external_references': ext_refs_serialized,
+                        'external_enhanced_article': st.session_state.get('external_enhanced_article'),
+                    })
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
+    
+    # Display results
+    if st.session_state.answer_result:
+        result = st.session_state.answer_result
+        
+        # Answer
+        st.subheader("💡 Answer")
+        st.markdown(result['answer'])
+        
+        # Check for citations
+        import re
+        citation_pattern = r'\[Source \d+: [^\]]+\]'
+        citations = re.findall(citation_pattern, result['answer'])
+        
+        if citations:
+            st.success(f"✅ Found {len(citations)} citation(s) in the answer")
+        else:
+            st.warning("⚠️ No citations found in the answer. The response may not be based on the provided sources.")
+        
+        # Show unique citations
+        if citations:
+            with st.expander("📋 Citations Found"):
+                unique_citations = sorted(set(citations))
+                for citation in unique_citations:
+                    st.markdown(f"- {citation}")
+        
+        # Download buttons for Q&A
+        col1, col2 = st.columns(2)
+        with col1:
+            # Download as Markdown
+            qa_markdown = f"# Question\n\n{result.get('query', 'N/A')}\n\n# Answer\n\n{result['answer']}\n\n# Sources\n\n"
+            for i, source in enumerate(result['sources'], 1):
+                qa_markdown += f"\n## [{i}] {source['filename']}\n\nRelevance: {source['score']:.2%}\n\n{source['chunk_text'][:500]}...\n\n"
+            
+            st.download_button(
+                label="📥 Download Q&A (Markdown)",
+                data=qa_markdown,
+                file_name="qa_answer.md",
+                mime="text/markdown"
+            )
+        
+        with col2:
+            # Download as PDF with timestamp
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            pdf_bytes = generate_qa_pdf(result)
+            st.download_button(
+                label="📄 Download Q&A (PDF)",
+                data=pdf_bytes,
+                file_name=f"qa_analysis_{timestamp}.pdf",
+                mime="application/pdf",
+                width='stretch'
+            )
+        
+        # Sources with enhanced metadata
+        st.subheader("📚 Sources")
+        st.markdown(f"*Retrieved from {len(result['sources'])} unique papers*")
+        
+        # Load metadata
+        metadata_path = "pdf_metadata.json"
+        metadata = {}
+        if os.path.exists(metadata_path):
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+        
+        for i, source in enumerate(result['sources'], 1):
+            filename = source['filename']
+            paper_meta = metadata.get(filename, {})
+            title = paper_meta.get('title', 'Unknown Title')
+            authors = paper_meta.get('authors', 'Unknown Authors')
+            year = paper_meta.get('year', 'N/A')
+            
+            with st.expander(f"📄 [{i}] {title} (Relevance: {source['score']:.2%})"):
+                st.caption(f"👥 {authors} ({year})")
+                st.caption(f"📁 {filename}")
+                st.divider()
+                st.text(source['chunk_text'][:500] + "..." if len(source['chunk_text']) > 500 else source['chunk_text'])
+
+
+def render_research_analysis():
+    """Render the research landscape analysis section."""
+    st.header("🔬 Research Landscape Analysis")
+    st.markdown("""Discover **meaningful insights** from your paper collection:
+    - **Research Themes**: Auto-detected topic clusters with descriptive labels
+    - **Influential Papers**: Most representative papers in each theme
+    - **Research Gaps**: Under-explored areas and opportunities
+    - **Temporal Trends**: How research focus evolved over time""")
+    
+    # Use selected collection from sidebar
+    collection = st.session_state.get('selected_collection', 'academic_papers_full_specter2')
+    
+    # Get collection info
+    try:
+        from qdrant_client import QdrantClient
+        client = QdrantClient(host="localhost", port=6333)
+        collection_info = client.get_collection(collection)
+        st.success(f"✓ Using collection: **{collection}** ({collection_info.points_count:,} vectors)")
+    except Exception as e:
+        st.error(f"Could not connect to collection '{collection}': {str(e)}")
+        return
+    
+    # Analysis parameters
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        num_themes = st.slider("Number of Research Themes", 3, 20, 5, 
+                              help="How many distinct research areas to identify")
+    with col2:
+        top_papers = st.slider("Top Influential Papers", 5, 50, 10,
+                              help="Number of key papers to highlight")
+    with col3:
+        max_papers = st.slider("Max Papers to Analyze", 50, 2000, 200,
+                              help="Limit papers for faster analysis (recommended: 100-500)")
+    
+    # Custom analysis focus (optional)
+    st.markdown("**Optional: Focus Analysis on Specific Topics**")
+    custom_focus = st.text_input(
+        "Enter keywords to focus analysis (comma-separated, leave empty for general analysis)",
+        placeholder="e.g., neural networks, deep learning, computer vision",
+        help="Filter papers to only those matching these keywords before analysis"
+    )
+    
+    # Run Analysis button
+    if st.button("🔬 Run Research Analysis", type="primary", width='stretch'):
+        with st.spinner(f"Analyzing up to {max_papers} papers... (this may take 30-60 seconds)"):
+            try:
+                from research_analyzer import ResearchAnalyzer
+                
+                analyzer = ResearchAnalyzer(collection_name=collection)
+                
+                # Parse custom focus keywords if provided
+                focus_keywords = None
+                if custom_focus and custom_focus.strip():
+                    focus_keywords = [kw.strip() for kw in custom_focus.split(',') if kw.strip()]
+                    st.info(f"🎯 Focusing analysis on: {', '.join(focus_keywords)}")
+                
+                results = analyzer.run_full_analysis(
+                    num_themes=num_themes,
+                    output_prefix="analysis_current",
+                    max_papers=max_papers,
+                    focus_keywords=focus_keywords
+                )
+                
+                if results:
+                    st.session_state.analysis_results = results
+                    st.success("✓ Analysis complete!")
+                else:
+                    st.error("Analysis failed - not enough papers")
+                    
+            except Exception as e:
+                st.error(f"Error running analysis: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
+    
+    # Display results if available
+    if 'analysis_results' in st.session_state:
+        results = st.session_state.analysis_results
+        
+        st.divider()
+        
+        # Research Themes Section
+        st.subheader("🎯 Research Themes Detected")
+        
+        themes = results['themes']
+        cols = st.columns(min(len(themes), 3))
+        
+        for i, (theme_id, theme_data) in enumerate(sorted(themes.items())):
+            with cols[i % 3]:
+                st.metric(
+                    theme_data['label'],
+                    f"{theme_data['size']} papers",
+                    f"{theme_data['percentage']:.1f}%"
+                )
+                st.caption(f"Keywords: {', '.join(theme_data['keywords'][:3])}")
+        
+        # Influential Papers Section
+        st.divider()
+        st.subheader("⭐ Most Influential Papers")
+        
+        for i, paper in enumerate(results['influential'][:top_papers], 1):
+            with st.expander(f"{i}. {paper['title'][:70]}..." if len(paper['title']) > 70 else f"{i}. {paper['title']}"):
+                st.write(f"**Authors:** {paper['authors']}")
+                st.write(f"**Year:** {paper['year']}")
+                st.write(f"**Theme:** {paper['theme']}")
+                st.progress(paper['representativeness'], text=f"Representativeness: {paper['representativeness']:.2%}")
+        
+        # Research Gaps Section
+        st.divider()
+        st.subheader("💡 Research Gaps & Opportunities")
+        
+        gaps = results['gaps']
+        if gaps:
+            for gap in gaps:
+                if gap['type'] == 'Under-explored Area':
+                    st.warning(f"**{gap['type']}**: {gap['description']}")
+                else:
+                    st.info(f"**{gap['type']}**: {gap['description']}")
+                st.caption(f"💡 Suggestion: {gap['suggestion']}")
+        else:
+            st.success("No significant research gaps detected - collection is well-balanced!")
+        
+        # Visualizations
+        st.divider()
+        st.subheader("📊 Interactive Visualizations")
+        
+        tab1, tab2 = st.tabs(["Research Landscape Map", "Temporal Trends"])
+        
+        with tab1:
+            if os.path.exists("analysis_current_landscape.html"):
+                with open("analysis_current_landscape.html", "r") as f:
+                    html_content = f.read()
+                components.html(html_content, height=900, scrolling=True)
+                
+                st.download_button(
+                    label="📥 Download Landscape Map",
+                    data=html_content,
+                    file_name="research_landscape.html",
+                    mime="text/html"
+                )
+        
+        with tab2:
+            if os.path.exists("analysis_current_trends.html"):
+                with open("analysis_current_trends.html", "r") as f:
+                    html_content = f.read()
+                components.html(html_content, height=500, scrolling=True)
+                
+                st.download_button(
+                    label="📥 Download Trends Chart",
+                    data=html_content,
+                    file_name="research_trends.html",
+                    mime="text/html"
+                )
+            else:
+                st.info("Temporal trends require papers from multiple years")
+        
+        # Full Report
+        st.divider()
+        with st.expander("📋 View Full Analysis Report"):
+            st.code(results['report'], language="text")
+            
+            st.download_button(
+                label="📥 Download Report",
+                data=results['report'],
+                file_name="research_analysis_report.txt",
+                mime="text/plain"
+            )
+    else:
+        st.info("👆 Click 'Run Research Analysis' to discover insights from your paper collection")
+
+
+def render_paper_explorer():
+    """Render the paper explorer and similar papers finder."""
+    st.header("📚 Paper Explorer & Similar Papers")
+    st.markdown("""Find and explore papers in your collection:
+    - **Search by Topic**: Find papers related to any research topic
+    - **Find Similar Papers**: Discover papers similar to one you select
+    - **Paper Details**: View metadata, abstract, and related works""")
+    
+    # Use selected collection from sidebar
+    collection = st.session_state.get('selected_collection', 'academic_papers_full_specter2')
+    
+    # Get collection info
+    try:
+        from qdrant_client import QdrantClient
+        client = QdrantClient(host="localhost", port=6333)
+        collection_info = client.get_collection(collection)
+        st.success(f"✓ Using collection: **{collection}** ({collection_info.points_count:,} vectors)")
+    except Exception as e:
+        st.error(f"Could not connect to collection '{collection}': {str(e)}")
+        return
+    
+    # Load metadata
+    metadata = {}
+    if os.path.exists("pdf_metadata.json"):
+        with open("pdf_metadata.json", 'r') as f:
+            metadata = json.load(f)
+    
+    # Search interface
+    search_query = st.text_input("🔍 Search for papers by topic or keywords", 
+                                placeholder="e.g., deep learning for medical imaging")
+    
+    num_results = st.slider("Number of results", 5, 50, 10)
+    
+    if st.button("🔎 Search Papers", type="primary") and search_query:
+        with st.spinner("Searching..."):
+            try:
+                # Use simple keyword-based search on metadata
+                search_query_lower = search_query.lower()
+                keywords = [kw.strip() for kw in search_query_lower.split() if len(kw.strip()) > 2]
+                
+                results = []
+                for filename, meta in metadata.items():
+                    title = (meta.get('title') or '').lower()
+                    abstract = (meta.get('abstract') or '').lower()
+                    authors = str(meta.get('authors') or '').lower()
+                    combined = f"{title} {abstract} {authors}"
+                    
+                    # Calculate relevance score (how many keywords match)
+                    matches = sum(1 for kw in keywords if kw in combined)
+                    if matches > 0:
+                        score = matches / len(keywords) if keywords else 0
+                        results.append({
+                            'filename': filename,
+                            'score': score,
+                            'matches': matches,
+                            'title': meta.get('title', filename),
+                            'abstract': meta.get('abstract', '')
+                        })
+                
+                # Sort by relevance
+                results.sort(key=lambda x: (x['matches'], x['score']), reverse=True)
+                results = results[:num_results]
+                
+                st.session_state.paper_search_results = results
+                st.success(f"Found {len(results)} relevant papers")
+                
+            except Exception as e:
+                st.error(f"Search error: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
+    
+    # Display search results
+    if 'paper_search_results' in st.session_state and st.session_state.paper_search_results:
+        st.divider()
+        st.subheader("📄 Search Results")
+        
+        for i, result in enumerate(st.session_state.paper_search_results, 1):
+            filename = result['filename']
+            title = result.get('title', filename.replace('.pdf', ''))
+            meta = metadata.get(filename, {})
+            authors = meta.get('authors', 'Unknown')
+            year = meta.get('year', 'N/A')
+            abstract = result.get('abstract', '')
+            if abstract and len(abstract) > 300:
+                abstract = abstract[:300] + '...'
+            elif not abstract:
+                abstract = 'No abstract available'
+            
+            with st.expander(f"{i}. {title[:80]}..." if len(title) > 80 else f"{i}. {title}"):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.write(f"**Authors:** {authors}")
+                    st.write(f"**Year:** {year}")
+                    st.write(f"**Relevance:** {result['score']:.2%}")
+                with col2:
+                    if st.button("Find Similar", key=f"similar_{i}"):
+                        st.session_state.find_similar_to = filename
+                
+                st.write("**Abstract:**")
+                st.caption(abstract)
+    
+    # Find similar papers section
+    st.divider()
+    st.subheader("🔗 Find Similar Papers")
+    
+    # Get list of all papers for selection
+    paper_options = []
+    for filename, meta in metadata.items():
+        title = meta.get('title') or filename
+        title = title[:60] if title else filename[:60]
+        paper_options.append(f"{title} ({filename})")
+    
+    if paper_options:
+        selected_paper = st.selectbox("Select a paper to find similar ones:", 
+                                     [""] + sorted(paper_options))
+        
+        if selected_paper and st.button("🔍 Find Similar Papers"):
+            # Extract filename from selection
+            filename = selected_paper.split("(")[-1].rstrip(")")
+            
+            with st.spinner("Finding similar papers..."):
+                try:
+                    # Get embedding of selected paper
+                    results = client.scroll(
+                        collection_name=collection,
+                        scroll_filter={"must": [{"key": "filename", "match": {"value": filename}}]},
+                        limit=1,
+                        with_vectors=True
+                    )
+                    
+                    if results[0]:
+                        query_vector = results[0][0].vector
+                        
+                        # Search for similar
+                        similar = client.search(
+                            collection_name=collection,
+                            query_vector=query_vector,
+                            limit=num_results + 1  # +1 to exclude self
+                        )
+                        
+                        st.session_state.similar_papers = [
+                            s for s in similar if s.payload.get('filename') != filename
+                        ][:num_results]
+                        
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
+    
+    # Display similar papers results with visualization
+    if 'similar_papers' in st.session_state and st.session_state.similar_papers:
+        st.divider()
+        st.subheader("🔗 Similar Papers Network")
+        
+        # Create network visualization
+        import plotly.graph_objects as go
+        import numpy as np
+        
+        # Get the selected paper info
+        selected_filename = None
+        for s in st.session_state.similar_papers:
+            if hasattr(st.session_state, 'find_similar_to'):
+                selected_filename = st.session_state.find_similar_to
+                break
+        
+        if not selected_filename and selected_paper:
+            selected_filename = selected_paper.split("(")[-1].rstrip(")")
+        
+        # Build network data
+        nodes = []
+        edges_x = []
+        edges_y = []
+        node_x = []
+        node_y = []
+        node_text = []
+        node_colors = []
+        node_sizes = []
+        
+        # Center node (selected paper)
+        if selected_filename:
+            center_meta = metadata.get(selected_filename, {})
+            center_title = center_meta.get('title', selected_filename)[:50]
+            nodes.append({'title': center_title, 'filename': selected_filename, 'is_center': True})
+            node_x.append(0)
+            node_y.append(0)
+            node_text.append(f"<b>SELECTED: {center_title}</b>")
+            node_colors.append('red')
+            node_sizes.append(30)
+        
+        # Similar papers arranged in circle
+        num_similar = len(st.session_state.similar_papers)
+        for i, result in enumerate(st.session_state.similar_papers):
+            filename = result.payload.get('filename', 'unknown')
+            meta = metadata.get(filename, {})
+            title = meta.get('title', filename)[:50]
+            similarity = result.score
+            
+            # Position in circle
+            angle = 2 * np.pi * i / num_similar
+            x = 2 * np.cos(angle)
+            y = 2 * np.sin(angle)
+            
+            nodes.append({'title': title, 'filename': filename, 'similarity': similarity})
+            node_x.append(x)
+            node_y.append(y)
+            node_text.append(f"<b>{title}</b><br>Similarity: {similarity:.1%}")
+            
+            # Color by similarity
+            if similarity > 0.8:
+                node_colors.append('green')
+            elif similarity > 0.6:
+                node_colors.append('orange')
+            else:
+                node_colors.append('blue')
+            
+            node_sizes.append(15 + similarity * 15)
+            
+            # Draw edge from center to this node
+            edges_x.extend([0, x, None])
+            edges_y.extend([0, y, None])
+        
+        # Create plotly figure
+        fig = go.Figure()
+        
+        # Add edges
+        fig.add_trace(go.Scatter(
+            x=edges_x, y=edges_y,
+            mode='lines',
+            line=dict(color='rgba(150,150,150,0.5)', width=2),
+            hoverinfo='none',
+            showlegend=False
+        ))
+        
+        # Add nodes
+        fig.add_trace(go.Scatter(
+            x=node_x, y=node_y,
+            mode='markers+text',
+            marker=dict(
+                size=node_sizes,
+                color=node_colors,
+                line=dict(width=2, color='white')
+            ),
+            text=node_text,
+            textposition="top center",
+            hoverinfo='text',
+            showlegend=False
+        ))
+        
+        fig.update_layout(
+            title="Paper Similarity Network",
+            showlegend=False,
+            hovermode='closest',
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            height=500,
+            plot_bgcolor='rgba(240,240,240,0.5)'
+        )
+        
+        st.plotly_chart(fig, width='stretch')
+        
+        # List view
+        st.write("**Similar Papers List:**")
+        
+        for i, result in enumerate(st.session_state.similar_papers, 1):
+            filename = result.payload.get('filename', 'unknown')
+            meta = metadata.get(filename, {})
+            title = meta.get('title', filename)
+            similarity = result.score
+            
+            st.write(f"{i}. **{title[:70]}...** (Similarity: {similarity:.2%})" 
+                    if len(title) > 70 else f"{i}. **{title}** (Similarity: {similarity:.2%})")
+
+
+def render_synthesis_section():
+    """Render the article synthesis section."""
+    st.header("✍️ Section 2 — Step 1: Synthesis Article Generator")
+    st.markdown("Generate a comprehensive academic article by synthesizing information from multiple papers.")
+    st.markdown(
+        """
+**Section 2 Milestones (recommended flow):**
+- **Step 1**: Synthesis Article Generator
+- **Step 2**: External Reference Discovery (2.1 Extract Keywords, 2.2 Internet Search)
+- **Step 3**: Integrate External References into Article
+- **Step 4**: Enhanced Article (Local + External References)
+- **Step 5**: Advanced Local Corpus Refinement
+"""
+    )
+    
+    # LLM selection
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        llm_choice = st.selectbox(
+            "Select Language Model:",
+            ["Ollama Qwen 3 (Local, Free)", "Ollama Gemma 3 27B (Local)", "OpenAI GPT", "Claude (Anthropic)"],
+            key="llm_choice"
+        )
+    
+    with col2:
+        # Show API key status
+        if llm_choice == "OpenAI GPT":
+            if os.getenv('OPENAI_API_KEY'):
+                st.success("✓ API Key Set")
+            else:
+                st.error("✗ API Key Missing")
+                st.caption("Set OPENAI_API_KEY")
+        elif llm_choice == "Claude (Anthropic)":
+            if os.getenv('ANTHROPIC_API_KEY'):
+                st.success("✓ API Key Set")
+            else:
+                st.error("✗ API Key Missing")
+                st.caption("Set ANTHROPIC_API_KEY")
+        else:
+            st.info("ℹ️ Local Model")
+    
+    # Article topic
+    topic = st.text_input(
+        "Describe the article you want to write:",
+        placeholder="e.g., A comprehensive survey of transformer architectures in natural language processing",
+        key="article_topic_input"
+    )
+    
+    # Template editor
+    with st.expander("📝 Template Editor (Optional - Customize Article Structure)"):
+        st.markdown("Edit the template below to customize the structure of your generated article.")
+        st.text_area(
+            "Article Template:",
+            value=DEFAULT_TEMPLATE,
+            height=400,
+            key="custom_template",
+            help="Use {topic}, {num_sources}, {word_count}, and {tone} as placeholders"
+        )
+    
+    # Article parameters
+    col1, col2 = st.columns(2)
+
+    # Load bibliography analysis to adjust default target word count (exclude References section budget)
+    ref_words_avg = None
+    try:
+        ref_analysis_path = "output/references_analysis_summary.json"
+        if os.path.exists(ref_analysis_path):
+            with open(ref_analysis_path, "r") as f:
+                _ref_analysis = json.load(f)
+            if isinstance(_ref_analysis, dict):
+                refs_text = _ref_analysis.get("references_text", {})
+                if isinstance(refs_text, dict):
+                    v = refs_text.get("ref_words_avg")
+                    if v is not None:
+                        ref_words_avg = int(round(float(v)))
+    except Exception:
+        ref_words_avg = None
+
+    base_total_default = 6550
+    body_default = base_total_default - (ref_words_avg or 0)
+    body_default = max(3000, min(12000, body_default))
+    
+    with col1:
+        word_count = st.number_input(
+            "Target Word Count:",
+            min_value=3000,
+            max_value=12000,
+            value=int(body_default),
+            step=50,
+            key="word_count",
+            help=(
+                "Target is for the article body only (References excluded). "
+                f"Default = 6,550 - avg References words ({ref_words_avg})" if ref_words_avg else
+                "Target is for the article body only (References excluded)."
+            )
+        )
+    
+    with col2:
+        tone = st.selectbox(
+            "Writing Tone:",
+            ["Academic (IEEE Style)", "Technical", "Survey", "Opinion"],
+            key="tone",
+            help="Academic style matches IEEE paper format with proper citations"
+        )
+    
+    # Technical/Mathematical Rigor Control
+    st.markdown("### 🔬 Technical & Mathematical Rigor")
+    st.caption("📊 Based on analysis of 5,634 IEEE papers: 99% include math, avg 41 equations/symbols per paper")
+    rigor_level = st.select_slider(
+        "Select Technical Depth Level:",
+        options=[
+            "1 - Overview (Minimal technical detail)",
+            "2 - Moderate (Some algorithms and metrics)",
+            "3 - Technical (Detailed algorithms, metrics, frameworks)",
+            "4 - Advanced (Deep technical detail, equations)",
+            "5 - Maximum (Full mathematical rigor, proofs, complexity analysis)",
+            "6 - Extreme (Research-grade accuracy, complete formulations, exhaustive analysis)"
+        ],
+        value="4 - Advanced (Deep technical detail, equations)",
+        key="rigor_level",
+        help="IEEE papers average: 99% include math (41 indicators), 91% use statistical tests, 94% include baseline comparisons. Level 4+ recommended for authentic IEEE style."
+    )
+    
+    # Extract numeric level
+    rigor_numeric = int(rigor_level.split(' - ')[0])
+    
+    # Source parameters
+    col3, col4 = st.columns(2)
+    
+    with col3:
+        num_papers = st.slider(
+            "Number of Papers to Use:",
+            1, 100, 42,
+            key="num_papers",
+            help="IEEE papers average 42 references (range: 15-80). Recommended: 30-50 for comprehensive coverage."
+        )
+    
+    with col4:
+        chunks_per_paper = st.slider(
+            "Chunks per Paper (avg):",
+            1, 10, 4,
+            key="chunks_per_paper",
+            help="More chunks = deeper context. Recommended: 3-5 for balanced depth vs breadth."
+        )
+    
+    # Calculate total chunks
+    num_sources = num_papers * chunks_per_paper
+    st.caption(f"Will retrieve approximately {num_sources} total chunks from {num_papers} papers")
+    
+    # Advanced Features
+    st.markdown("### 🎯 Advanced Features")
+    col5, col6 = st.columns(2)
+    
+    with col5:
+        include_math = st.checkbox(
+            "📐 Include Mathematical Functions",
+            value=True,
+            key="include_math",
+            help="99% of IEEE papers include math (avg 41 equations/symbols). Strongly recommended for authentic IEEE style."
+        )
+    
+    with col6:
+        include_synthetic_data = st.checkbox(
+            "📊 Generate Synthetic Data",
+            value=False,
+            key="include_synthetic_data",
+            help="59% of IEEE papers report error bars/std. Enable for statistical rigor demonstrations."
+        )
+    
+    # Show details when enabled with data-driven recommendations
+    if include_math:
+        st.info("📐 Will include: equations, formulas, algorithmic complexity, mathematical models\n\n" +
+                "✓ Aligns with 99% of IEEE papers (avg 41 math indicators)")
+    
+    if include_synthetic_data:
+        st.info("📊 Will include: synthetic datasets, sample data tables, statistical analysis examples\n\n" +
+                "✓ 59% of papers report error bars, 33% use std, 19% use ± symbols")
+    
+    # Add quality metrics recommendations
+    with st.expander("📊 IEEE Paper Quality Benchmarks (from 5,634 papers)"):
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown("""
+            **Structure & Content:**
+            - Avg references: 42 (range: 15-80)
+            - Avg figures: 23 per paper
+            - Avg tables: 15 per paper
+            - Avg performance metrics: 5 unique
+            - Avg word count: 6,630 words
+            
+            **Technical Rigor:**
+            - Math indicators: 99% (avg 41)
+            - Statistical tests: 91%
+            - Baseline comparisons: 94%
+            - Ablation studies: 32%
+            """)
+        with col_b:
+            st.markdown("""
+            **Reproducibility:**
+            - Multiple runs/seeds: 47%
+            - Error reporting: 59%
+            - Code availability: 20%
+            - Dataset mentions: avg 29
+            
+            **Writing Quality:**
+            - Flesch Reading Ease: 42 (college level)
+            - Grade Level: 9.7 (9th-10th grade)
+            - Novel claims: 82%
+            - SOTA claims: 58%
+            """)
+    
+    if 'synthesis_logs' not in st.session_state:
+        st.session_state.synthesis_logs = []
+    if 'synthesis_run_started_at' not in st.session_state:
+        st.session_state.synthesis_run_started_at = None
+
+    # Persisted log viewer (single place; avoids duplicate expanders that can cause flicker)
+    with st.expander("📋 Live Generation Log", expanded=True):
+        log_area = st.empty()
+        if st.session_state.get('synthesis_logs'):
+            log_area.text("\n".join(st.session_state.synthesis_logs[-200:]))
+        else:
+            log_area.text("")
+
+    # Generate button
+    st.markdown("<a id='step1'></a>", unsafe_allow_html=True)  # Anchor for Step 1
+    if st.button("🚀 Generate Article", type="primary", width='stretch'):
+        if not topic:
+            st.warning("Please describe the article topic.")
+        else:
+            # Check API key if needed
+            if llm_choice == "OpenAI GPT" and not os.getenv('OPENAI_API_KEY'):
+                st.error("OpenAI API key not found. Please set OPENAI_API_KEY environment variable.")
+                return
+            elif llm_choice == "Claude (Anthropic)" and not os.getenv('ANTHROPIC_API_KEY'):
+                st.error("Anthropic API key not found. Please set ANTHROPIC_API_KEY environment variable.")
+                return
+            
+            # Get active collection
+            collection = st.session_state.get('active_collection', 'academic_papers_100_specter')
+            
+            with st.spinner(f"Retrieving content from {num_papers} papers ({num_sources} chunks total)..."):
+                try:
+                    # Update MMR retriever to use selected collection
+                    from retrieval_mmr import MMRRetriever
+                    from citation_formatter import CitationFormatter
+                    
+                    mmr = MMRRetriever(collection_name=collection)
+                    formatter = CitationFormatter()
+                    
+                    # Calculate chunks per paper
+                    chunks_per_paper = max(2, num_sources // num_papers) if num_papers > 0 else 3
+                    
+                    # Retrieve with diversity enforcement
+                    sources_list = mmr.diverse_paper_retrieval(
+                        topic,
+                        num_papers=num_papers,
+                        chunks_per_paper=chunks_per_paper
+                    )
+                    
+                    # VALIDATION: Check paper-topic semantic relevance
+                    metadata_path = "pdf_metadata.json"
+                    if os.path.exists(metadata_path):
+                        with open(metadata_path, 'r') as f:
+                            metadata = json.load(f)
+                        
+                        # Warn about potentially irrelevant papers
+                        topic_lower = topic.lower()
+                        topic_keywords = set(topic_lower.split())
+                        
+                        potentially_irrelevant = []
+                        for source in sources_list[:10]:  # Check first 10 papers
+                            filename = source['filename']
+                            paper_meta = metadata.get(filename, {})
+                            title = paper_meta.get('title', '').lower()
+                            
+                            # Simple keyword overlap check
+                            title_keywords = set(title.split())
+                            overlap = len(topic_keywords & title_keywords)
+                            
+                            if overlap == 0 and len(title) > 0:
+                                potentially_irrelevant.append(filename)
+                        
+                        if potentially_irrelevant and len(potentially_irrelevant) > len(sources_list) * 0.3:
+                            st.warning(f"⚠️ {len(potentially_irrelevant)} papers may not match your topic. Consider refining your search query for better relevance.")
+                    
+                    # Create citation mapping (one entry per unique paper, not per chunk)
+                    citation_map = formatter.create_citation_mapping(sources_list)
+                    
+                    # Count actual unique papers
+                    unique_papers = len(citation_map)
+                    total_chunks = len(sources_list)
+                    
+                    # Format sources - all chunks from same paper get same citation number
+                    sources_text = ""
+                    if llm_choice != "OpenAI GPT":
+                        formatted_chunks = []
+                        for source in sources_list:
+                            filename = source['filename']
+                            citation_num = citation_map.get(filename, 0)
+                            chunk_text = source['chunk_text']
+                            source_info = formatter.get_source_info(filename)
+                            formatted_chunk = f"\n---\n**Source [{citation_num}]**: {source_info}\n\n{chunk_text}\n"
+                            formatted_chunks.append(formatted_chunk)
+                        sources_text = "\n".join(formatted_chunks)
+                    reference_list = formatter.create_reference_list(sources_list)
+                    st.session_state.article_sources = sources_list
+                    st.session_state.citation_map = citation_map
+                    st.session_state.reference_list = reference_list
+                    st.session_state.article_topic_stored = topic  # Store topic for PDF generation
+
+                    prompt = None
+                    if llm_choice != "OpenAI GPT":
+                        # Create enhanced prompt with proper citations and rigor level
+                        prompt = create_enhanced_article_prompt(
+                            topic=topic,
+                            sources=sources_text,
+                            word_count=word_count,
+                            tone=tone,
+                            reference_list=reference_list,
+                            citation_map=citation_map,
+                            total_sources=len(sources_list),
+                            rigor_level=rigor_numeric,
+                            include_math=include_math,
+                            include_synthetic_data=include_synthetic_data
+                        )
+                    
+                    # Show info about sources
+                    actual_papers = len(citation_map)
+                    if actual_papers < num_papers:
+                        st.warning(f"⚠️ Only found {actual_papers} unique papers for this topic (requested {num_papers}). Consider broadening your topic or reducing paper count.")
+                    else:
+                        st.success(f"✓ Retrieved {len(sources_list)} chunks from {actual_papers} unique papers. The LLM will cite these throughout the article.")
+                    
+                    # Generate article with live progress tracking
+                    progress_placeholder = st.empty()
+                    log_placeholder = st.empty()
+                    
+                    # Create progress container
+                    with progress_placeholder.container():
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                    
+                    # Log UI is created above (single expander). This placeholder is kept for layout stability.
+                    with log_placeholder.container():
+                        pass
+                    
+                    st.session_state.synthesis_logs = []
+                    st.session_state.synthesis_run_started_at = datetime.now().timestamp()
+
+                    def add_log(message):
+                        """Add a log message with timestamp + elapsed seconds (persisted)."""
+                        now = datetime.now()
+                        timestamp = now.strftime("%H:%M:%S")
+                        t0 = st.session_state.get('synthesis_run_started_at')
+                        elapsed = None
+                        if isinstance(t0, (int, float)):
+                            elapsed = max(0.0, now.timestamp() - t0)
+                        if elapsed is None:
+                            line = f"[{timestamp}] {message}"
+                        else:
+                            line = f"[{timestamp} +{elapsed:.1f}s] {message}"
+                        st.session_state.synthesis_logs.append(line)
+                        log_area.text("\n".join(st.session_state.synthesis_logs[-200:]))
+                    
+                    try:
+                        # Step 1: Prepare prompt
+                        progress_bar.progress(10)
+                        status_text.text("📝 Preparing generation prompt...")
+                        add_log(f"Using LLM: {llm_choice}")
+                        add_log(f"Target word count: {word_count}")
+                        add_log(f"Rigor level: {rigor_numeric}/6")
+                        add_log(f"Sources: {len(sources_list)} chunks from {actual_papers} papers")
+                        add_log(f"Retrieved {total_chunks} chunks from {unique_papers} unique papers")
+                        add_log(f"Citation range: [1] to [{unique_papers}]")
+                        if include_math:
+                            add_log("📐 Mathematical functions: ENABLED")
+                        if include_synthetic_data:
+                            add_log("📊 Synthetic data generation: ENABLED")
+                        
+                        # Step 2: Send to LLM
+                        progress_bar.progress(20)
+                        status_text.text(f"🤖 Sending request to {llm_choice}...")
+                        add_log("Sending generation request to LLM...")
+                        if prompt is not None:
+                            add_log(f"Prompt size: {len(prompt)} characters")
+                        else:
+                            add_log("Prompt: OpenAI TPM-safe mode (no full prompt constructed)")
+                        
+                        # Generate article
+                        progress_bar.progress(30)
+                        status_text.text("Generating article... (this may take 2-10 minutes)")
+                        add_log("LLM is generating article...")
+                        add_log("This may take several minutes for long articles")
+                        
+                        # Create system message emphasizing citations
+                        system_msg = f"""You are an IEEE-style academic writer. CRITICAL RULES:
+1. You MUST include numbered citations [1], [2], [3] throughout your article
+2. You have {len(citation_map)} papers available
+3. Use AT LEAST {max(len(citation_map) // 2, 10)} different citation numbers
+4. Every paragraph needs citations
+5. DO NOT use emojis anywhere in the article - this is a formal academic paper
+6. Articles without citations are UNACCEPTABLE"""
+                        
+                        if llm_choice == "Ollama Qwen 3 (Local, Free)":
+                            add_log("Using local Ollama model (qwen3:8b)")
+                            article = call_ollama(prompt, model="qwen3:8b", system=system_msg)
+                            # Validate and fix LaTeX
+                            add_log("🔍 Validating LaTeX syntax...")
+                            article = _validate_and_fix_latex_delimiters(article, log_fn=add_log)
+                        elif llm_choice == "Ollama Gemma 3 27B (Local)":
+                            add_log("Using local Ollama model (gemma3:27b)")
+                            article = call_ollama(prompt, model="gemma3:27b", system=system_msg)
+                            # Validate and fix LaTeX
+                            add_log("🔍 Validating LaTeX syntax...")
+                            article = _validate_and_fix_latex_delimiters(article, log_fn=add_log)
+                        elif llm_choice == "OpenAI GPT":
+                            add_log("Using OpenAI GPT-4o in TPM-safe multi-call mode")
+                            article = generate_article_with_openai_chunks(
+                                system_msg,
+                                sources_list,
+                                citation_map,
+                                word_count,
+                                tone,
+                                rigor_numeric,
+                                include_math,
+                                include_synthetic_data,
+                                topic,
+                                log_fn=add_log,
+                            )
+                            # LaTeX validation already done inside generate_article_with_openai_chunks
+                        else:  # Claude
+                            add_log("Using Claude 3.5 Sonnet")
+                            article = call_claude(prompt, model="claude-3-5-sonnet-20241022", max_tokens=8000, system=system_msg)
+                            # Validate and fix LaTeX
+                            add_log("🔍 Validating LaTeX syntax...")
+                            article = _validate_and_fix_latex_delimiters(article, log_fn=add_log)
+                        
+                        progress_bar.progress(70)
+                        status_text.text("Article received from LLM")
+                        add_log(f"Article generated: {len(article)} characters")
+                        add_log(f"Estimated words: ~{len(article.split())}")
+                        
+                        # Step 3: Post-process
+                        progress_bar.progress(80)
+                        status_text.text("Post-processing citations and references...")
+                        add_log("Validating citations...")
+                        add_log("Fixing reference section...")
+                        
+                        citation_manager = CitationManager()
+                        fixed_article, citation_stats = citation_manager.validate_and_fix_article(
+                            article, citation_map, sources_list
+                        )
+
+                        # If the LLM ignored citation requirements, force a rewrite pass that only adds citations.
+                        if citation_stats.get('citations_in_article', 0) == 0 and citation_map:
+                            progress_bar.progress(85)
+                            status_text.text("No citations detected - rewriting to enforce IEEE citations...")
+                            add_log("WARNING: No citations detected in output. Requesting citation-only rewrite pass...")
+
+                            max_valid = max(citation_map.values())
+                            required_unique = max(len(citation_map) // 2, 10)
+                            rewrite_system = (
+                                "You are an IEEE-style academic writer. "
+                                "You MUST output IEEE bracket citations like [1] in EVERY paragraph. "
+                                "DO NOT use emojis - this is a formal academic paper. "
+                                "Do not add a References section. Do not invent sources."
+                            )
+                            rewrite_prompt = f"""Rewrite the article below to include IEEE-style in-text citations.
+
+STRICT RULES:
+- Use ONLY citation numbers between [1] and [{max_valid}].
+- Cite EVERY paragraph with 1-2 citations.
+- Use at least {required_unique} different citation numbers total.
+- You may minimally edit sentences to place citations correctly, but keep the content and structure the same.
+- Do NOT add a References section.
+
+ARTICLE TO REWRITE (no citations present):
+---
+{article}
+---
+"""
+
+                            if llm_choice == "Ollama Qwen 3 (Local, Free)":
+                                add_log("Rewrite using local Ollama model (qwen3:8b)")
+                                article = call_ollama(rewrite_prompt, model="qwen3:8b", system=rewrite_system)
+                                # Validate and fix LaTeX
+                                add_log("🔍 Validating LaTeX syntax...")
+                                article = _validate_and_fix_latex_delimiters(article, log_fn=add_log)
+                            elif llm_choice == "Ollama Gemma 3 27B (Local)":
+                                add_log("Rewrite using local Ollama model (gemma3:27b)")
+                                article = call_ollama(rewrite_prompt, model="gemma3:27b", system=rewrite_system)
+                                # Validate and fix LaTeX
+                                add_log("🔍 Validating LaTeX syntax...")
+                                article = _validate_and_fix_latex_delimiters(article, log_fn=add_log)
+                            elif llm_choice == "OpenAI GPT":
+                                add_log("Rewrite using OpenAI GPT-4o")
+                                article = call_openai(rewrite_prompt, model="gpt-4o", max_tokens=8000, system=rewrite_system)
+                                # Validate and fix LaTeX
+                                add_log("🔍 Validating LaTeX syntax...")
+                                article = _validate_and_fix_latex_delimiters(article, log_fn=add_log)
+                            else:  # Claude
+                                add_log("Rewrite using Claude 3.5 Sonnet")
+                                article = call_claude(rewrite_prompt, model="claude-3-5-sonnet-20241022", max_tokens=8000, system=rewrite_system)
+                                # Validate and fix LaTeX
+                                add_log("🔍 Validating LaTeX syntax...")
+                                article = _validate_and_fix_latex_delimiters(article, log_fn=add_log)
+
+                            fixed_article, citation_stats = citation_manager.validate_and_fix_article(
+                                article, citation_map, sources_list
+                            )
+
+                        progress_bar.progress(90)
+                        add_log(f"Citations found: {citation_stats['citations_in_article']}")
+                        add_log(f"Papers cited: {citation_stats['cited_papers']}")
+                        add_log(f"Utilization: {citation_stats['citations_in_article']}/{citation_stats['unique_papers_provided']} papers")
+                        
+                        # Check body word count vs target (for warning purposes)
+                        try:
+                            _cm_check = CitationManager()
+                            _, _body_check = _cm_check.extract_title(fixed_article)
+                            _body_check = (_body_check or "").split("\n## References", 1)[0]
+                            body_word_count = len(_body_check.split())
+                            min_target = int(word_count * 0.85)
+                            if body_word_count < min_target:
+                                add_log(f"⚠️ Body word count ({body_word_count}) is below target minimum ({min_target})")
+                                st.session_state._article_under_target = {
+                                    'body_words': body_word_count,
+                                    'target': word_count,
+                                    'min_target': min_target
+                                }
+                            else:
+                                st.session_state._article_under_target = None
+                                add_log(f"✓ Body word count: {body_word_count} (target: {word_count})")
+                        except Exception:
+                            st.session_state._article_under_target = None
+                        
+                        # Step 4: Complete
+                        progress_bar.progress(100)
+                        status_text.text("✅ Article generation complete!")
+                        add_log("✅ Generation complete!")
+                        add_log(f"Final article: {len(fixed_article)} characters, ~{len(fixed_article.split())} words")
+                        
+                        st.session_state.generated_article = fixed_article
+                        st.session_state.base_generated_article = fixed_article
+                        st.session_state.citation_stats = citation_stats
+                        st.session_state.refined_article = None
+                        st.session_state.refinement_report = None
+                        st.session_state.last_refinement_error = None
+
+                        # Step 1 regeneration invalidates Step 2-5 outputs.
+                        _invalidate_steps_after(1)
+
+                        _save_ui_cache({
+                            'answer_result': st.session_state.answer_result,
+                            'generated_article': st.session_state.generated_article,
+                            'base_generated_article': st.session_state.base_generated_article,
+                            'article_sources': st.session_state.article_sources,
+                            'citation_map': st.session_state.get('citation_map'),
+                            'citation_stats': st.session_state.get('citation_stats'),
+                            'reference_list': st.session_state.get('reference_list'),
+                            'article_topic_stored': st.session_state.get('article_topic_stored'),
+                            'refined_article': st.session_state.get('refined_article'),
+                            'refinement_report': st.session_state.get('refinement_report'),
+                        })
+                        
+                        # Clear progress UI after 2 seconds
+                        import time
+                        time.sleep(2)
+                        progress_placeholder.empty()
+                        
+                        # Show final statistics with IEEE compliance check
+                        st.success(f"✓ Article generated successfully! Used {citation_stats['citations_in_article']} citations from {citation_stats['cited_papers']} papers.")
+                        
+                        # Word count warning if under target
+                        if st.session_state.get('_article_under_target'):
+                            under_info = st.session_state._article_under_target
+                            st.warning(
+                                f"⚠️ **Article Under Target Word Count** — Body has {under_info['body_words']} words "
+                                f"(target: {under_info['target']}, minimum: {under_info['min_target']}). "
+                                "Consider using Step 5 (Local Corpus Refinement) to expand the article, or regenerate with a different model."
+                            )
+                        
+                        # IEEE Standards Compliance Check (from 5,671 paper corpus)
+                        ieee_compliant = citation_stats.get('ieee_compliant', False)
+                        if ieee_compliant:
+                            st.success("✅ **IEEE Standards Met** - Article meets all minimum requirements")
+                        else:
+                            st.warning("⚠️ **IEEE Standards Not Met** - Article may be rejected for export")
+                        
+                        # Show compliance details
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric(
+                                "Papers Provided",
+                                f"{citation_stats['unique_papers_provided']}",
+                                help="Total unique papers given to the LLM"
+                            )
+                        with col2:
+                            ref_status = "✅" if citation_stats.get('meets_min_references', False) else "❌"
+                            st.metric(
+                                f"{ref_status} Papers Cited",
+                                f"{citation_stats['cited_papers']}",
+                                delta=f"{citation_stats['cited_papers'] - citation_stats['unique_papers_provided']}",
+                                help="Papers actually cited in article (Min: 19, Target: 47)"
+                            )
+                        with col3:
+                            cite_status = "✅" if citation_stats.get('meets_min_citations', False) else "❌"
+                            st.metric(
+                                f"{cite_status} Citations",
+                                f"{citation_stats['citations_in_article']}",
+                                help="Total citation occurrences (Min: 68, Target: 135)"
+                            )
+                        with col4:
+                            density_status = "✅" if citation_stats.get('meets_min_density', False) else "❌"
+                            st.metric(
+                                f"{density_status} Density",
+                                f"{citation_stats.get('refs_per_1k_words', 0):.1f}/1k",
+                                help="References per 1000 words (Min: 3.5, Target: 7.1)"
+                            )
+                        
+                        # Critical validation warnings
+                        if citation_stats.get('has_orphaned', False):
+                            orphaned_count = len(citation_stats.get('orphaned_citations', []))
+                            orphaned_list = citation_stats.get('orphaned_citations', [])
+                            max_valid = max(citation_map.values()) if citation_map else 0
+                            st.error(f"🔴 CRITICAL: {orphaned_count} citations lack reference mappings. Article cannot be exported until fixed.")
+                            st.caption(f"Orphaned citations: {orphaned_list[:20]}")
+                            st.caption(f"Valid citation range: [1] to [{max_valid}] ({len(citation_map)} papers)")
+                            st.warning("⚠️ The LLM used citation numbers beyond available sources. Try regenerating with clearer instructions.")
+                        
+                        # Explain citation utilization
+                        papers_provided = citation_stats['unique_papers_provided']
+                        papers_cited = citation_stats['cited_papers']
+                        if papers_cited < papers_provided:
+                            utilization = (papers_cited / papers_provided * 100) if papers_provided > 0 else 0
+                            st.info(f"ℹ️ **Citation Utilization:** The LLM cited {papers_cited} out of {papers_provided} papers provided ({utilization:.0f}%). "
+                                   f"Per IEEE standards, only cited papers appear in the reference list. "
+                                   f"The {papers_provided - papers_cited} uncited papers were available but not used.")
+                        
+                        # Additional warnings
+                        if not citation_stats.get('meets_min_references', False):
+                            needed = 19 - citation_stats['cited_papers']
+                            st.warning(f"⚠️ Add {needed} more cited references to meet IEEE minimum (currently {citation_stats['cited_papers']}, need 19)")
+                        if not citation_stats.get('meets_min_citations', False):
+                            st.warning(f"⚠️ Add {68 - citation_stats['citations_in_article']} more in-text citations to meet IEEE minimum")
+                        if not citation_stats.get('meets_min_density', False):
+                            st.warning("⚠️ Citation density below IEEE minimum (3.5 refs/1k words)")
+                    
+                    except Exception as e:
+                        progress_bar.progress(0)
+                        status_text.text("❌ Error during generation")
+                        add_log(f"❌ Error: {str(e)}")
+                        raise e
+                
+                except Exception as e:
+                    st.error(f"Error generating article: {str(e)}")
+    
+    # Display generated article
+    if st.session_state.get('generated_article'):
+        st.markdown("---")
+        st.subheader("Generated Article")
+        
+        # Show citation statistics if available
+        stats = st.session_state.get('citation_stats')
+        if isinstance(stats, dict):
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Sources Provided", stats['total_sources_provided'])
+            with col2:
+                st.metric("Unique Papers", stats['unique_papers_provided'])
+            with col3:
+                st.metric("Citations Used", stats['citations_in_article'])
+            with col4:
+                utilization = stats['citations_in_article'] / stats['unique_papers_provided'] * 100 if stats['unique_papers_provided'] > 0 else 0
+                st.metric("Utilization", f"{utilization:.0f}%")
+        
+        # Action buttons
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            if st.session_state.generated_article:
+                st.download_button(
+                    label="📥 Download Markdown",
+                    data=st.session_state.generated_article,
+                    file_name="generated_article.md",
+                    mime="text/markdown"
+                )
+        with col2:
+            # LaTeX Validation & Fix Button
+            if st.session_state.generated_article:
+                if st.button("🔧 Validate & Fix LaTeX", help="Check and fix LaTeX formula syntax errors"):
+                    with st.spinner("Validating and fixing LaTeX syntax..."):
+                        original_article = st.session_state.generated_article
+                        
+                        # ALWAYS apply the fix, even if we don't detect errors
+                        # (in case detection is failing)
+                        fixed_article = _validate_and_fix_latex_delimiters(original_article)
+                        
+                        # Count actual changes
+                        changes = sum(1 for a, b in zip(original_article, fixed_article) if a != b)
+                        
+                        # ALWAYS update session state and cache
+                        st.session_state.generated_article = fixed_article
+                        if st.session_state.get('base_generated_article'):
+                            st.session_state.base_generated_article = fixed_article
+                        
+                        # Save to cache
+                        _save_ui_cache({
+                            'generated_article': fixed_article,
+                            'base_generated_article': fixed_article,
+                        })
+                        
+                        if changes > 0:
+                            st.success(f"✅ Fixed LaTeX syntax! Applied {changes} character corrections.")
+                            st.info("💾 Changes saved. Reloading page...")
+                        else:
+                            st.success("✅ Article validated - no changes needed.")
+                        
+                        # CRITICAL: Invalidate PDF cache so next download uses fixed version
+                        st.session_state.generated_article_pdf_bytes = None
+                        st.session_state.generated_article_pdf_sig = None
+                        
+                        # ALWAYS force rerun to refresh the display
+                        st.rerun()
+        with col3:
+            if st.session_state.generated_article:
+                # Always generate and enable PDF download (per user request)
+                # Show validation warnings but don't block download
+                citation_manager = CitationManager()
+                cited_numbers = citation_manager.extract_citations_from_article(
+                    st.session_state.generated_article
+                )
+                mapped_numbers = set(st.session_state.get('citation_map', {}).values())
+                missing = cited_numbers - mapped_numbers
+                
+                # Generate PDF (cache bytes to avoid stale Streamlit media IDs across reruns)
+                # IMPORTANT: Always regenerate PDF to reflect latest changes (including LaTeX fixes)
+                import hashlib
+                article_sig_src = (st.session_state.generated_article or "")
+                article_sig_src += "|" + (st.session_state.get('article_topic_stored') or "")
+                # Add a timestamp component to force regeneration after validation button clicks
+                article_sig_src += "|" + str(len(st.session_state.generated_article or ""))
+                article_sig = hashlib.sha256(article_sig_src.encode("utf-8", errors="ignore")).hexdigest()
+
+                if st.session_state.get('generated_article_pdf_bytes') is None or st.session_state.get('generated_article_pdf_sig') != article_sig:
+                    # Use the current article from session state (which includes any LaTeX fixes)
+                    st.session_state.generated_article_pdf_bytes = generate_article_pdf(
+                        st.session_state.generated_article,
+                        st.session_state.get('article_topic_stored', 'Research Article'),
+                        st.session_state.get('citation_map', {}),
+                        st.session_state.get('article_sources', [])
+                    )
+                    st.session_state.generated_article_pdf_sig = article_sig
+
+                pdf_bytes = st.session_state.generated_article_pdf_bytes
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                # Show warning if there are issues, but still allow download
+                if missing:
+                    max_valid = max(st.session_state.get('citation_map', {}).values()) if st.session_state.get('citation_map') else 0
+                    st.warning(f"⚠️ {len(missing)} orphaned citations will show as 'MISSING REFERENCE' in PDF")
+                    st.caption(f"Valid range: [1]-[{max_valid}], Found: {sorted(list(missing)[:10])}")
+                
+                st.download_button(
+                    label="📄 Download PDF",
+                    data=pdf_bytes,
+                    file_name=f"article_{timestamp}.pdf",
+                    mime="application/pdf",
+                    width='stretch'
+                )
+        with col4:
+            if st.button("🗑️ Clear Article"):
+                # Clearing the article should clear all dependent steps.
+                keys_to_clear = [
+                    'generated_article', 'base_generated_article', 'article_sources',
+                    'citation_map', 'citation_stats', 'reference_list', 'article_topic_stored',
+                    'refined_article', 'refinement_report', 'last_refinement_error',
+                    'external_references', 'external_enhanced_article',
+                    'extracted_keywords', 'selected_keywords',
+                    'unified_citation_map', 'unified_reference_list', 'external_refs_integrated', 'full_enhanced_article',
+                ]
+                for k in keys_to_clear:
+                    st.session_state[k] = None
+                _save_ui_cache({k: _UI_CACHE_DELETE for k in keys_to_clear})
+                st.rerun()
+        
+        # Display article with title
+        st.markdown("---")
+        article_text = st.session_state.generated_article
+        
+        if article_text:  # Safety check
+            # Use CitationManager to extract title properly
+            cm = CitationManager()
+            extracted_title, article_body = cm.extract_title(article_text)
+            
+            # Display title prominently
+            if extracted_title and extracted_title != "Research Article":
+                st.title(extracted_title)
+            else:
+                # Fallback to stored topic
+                st.title(st.session_state.get('article_topic_stored', 'Generated Article'))
+            
+            # Display the article body (without the title line)
+            # CRITICAL: Check for errors BEFORE normalization
+            errors_before = []
+            if r"\left$" in article_body:
+                errors_before.append("left-dollar")
+            if r"\right$" in article_body:
+                errors_before.append("right-dollar")
+            
+            # Use the same normalization as PDF for consistency
+            normalized_body = _normalize_article_for_rendering(article_body)
+            
+            # Check for errors AFTER normalization
+            errors_after = []
+            if r"\left$" in normalized_body:
+                errors_after.append("left-dollar")
+            if r"\right$" in normalized_body:
+                errors_after.append("right-dollar")
+            
+            # Debug output
+            if errors_before or errors_after:
+                st.warning(
+                    f"🔍 **LaTeX Debug Info:**\n\n"
+                    f"- Errors in original article: {errors_before if errors_before else 'None'}\n\n"
+                    f"- Errors after normalization: {errors_after if errors_after else 'None'}\n\n"
+                    f"- Article length: {len(article_body)} chars\n\n"
+                    f"- Normalized length: {len(normalized_body)} chars"
+                )
+                
+                # If errors exist in original, show the fix button message
+                if errors_before:
+                    st.error("⚠️ Click the '🔧 Validate & Fix LaTeX' button to fix the source article.")
+                
+                # If errors persist after normalization, that's a bug
+                if errors_after:
+                    st.error("❌ Normalization failed to fix errors - this is a bug. Please report.")
+            
+            # Do NOT use unsafe_allow_html here; it can interfere with MathJax rendering.
+            st.markdown(normalized_body)
+        
+        # Show citation analysis report
+        if 'citation_map' in st.session_state and 'article_sources' in st.session_state and st.session_state.generated_article:
+            with st.expander("📊 View Citation Analysis Report"):
+                citation_manager = CitationManager()
+                report = citation_manager.create_citation_report(
+                    st.session_state.generated_article,
+                    st.session_state.citation_map,
+                    st.session_state.article_sources
+                )
+                st.code(report, language="text")
+        
+        # LAYER 2A/2B/3: External Reference Integration
+        if st.session_state.get('generated_article') and 'citation_map' in st.session_state:
+            from layer2_external_ui import (
+                render_layer2a_fetch_external_refs,
+                render_layer2b_integrate_external_refs,
+                render_layer3_rebuild_references
+            )
+            
+            # Layer 2A: Fetch external references
+            render_layer2a_fetch_external_refs()
+            
+            # Layer 2B: Integrate external references (only if fetched)
+            if st.session_state.get('external_references'):
+                render_layer2b_integrate_external_refs()
+            
+            # Layer 3: Display enhanced article (only if integrated)
+            if st.session_state.get('external_enhanced_article'):
+                render_layer3_rebuild_references()
+        
+        # ADVANCED: Local Corpus Refinement (Optional)
+        if st.session_state.get('generated_article') and 'citation_map' in st.session_state and 'article_sources' in st.session_state:
+            st.divider()
+            st.markdown(
+                """
+<style>
+.step_banner {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  border: 1px solid rgba(0,0,0,0.08);
+}
+.step_5_banner { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.30); }
+</style>
+""",
+                unsafe_allow_html=True,
+            )
+            st.markdown('<a id="step4"></a><div class="step_banner step_5_banner">Step 5 — Advanced: Local Corpus Refinement</div>', unsafe_allow_html=True)
+            
+            # Check if we have external refs from Step 3
+            has_external_refs = st.session_state.get('external_refs_integrated') is not None
+            has_enhanced_article = st.session_state.get('external_enhanced_article') is not None
+            
+            if has_enhanced_article:
+                st.caption("Refines the enhanced article (with external refs) using local corpus papers for additional citations.")
+                article_to_refine = st.session_state.external_enhanced_article
+            else:
+                st.caption("Refines article using local corpus papers. Adds more citations from unused sources.")
+                article_to_refine = st.session_state.generated_article
+            
+            # Load IEEE patterns for optimization targets
+            ieee_patterns = None
+            patterns_path = "output/ieee_patterns_summary.json"
+            if os.path.exists(patterns_path):
+                try:
+                    with open(patterns_path, 'r') as f:
+                        ieee_patterns = json.load(f)
+                except Exception:
+                    pass
+            
+            # Get IEEE targets
+            if ieee_patterns:
+                constraints = ieee_patterns.get('recommended_constraints', {})
+                target_citations = constraints.get('in_text_citations', {}).get('target', 135)
+                target_words = constraints.get('total_words', {}).get('target', 6550)
+            else:
+                target_citations = 135
+                target_words = 6550
+
+            # Analyze current coverage
+            from article_refiner import ArticleRefiner, create_refinement_report
+
+            # Use unified citation map if available (includes external refs)
+            if st.session_state.get('unified_citation_map'):
+                _ = st.session_state.unified_citation_map  # Use unified map if available
+            
+            refiner = ArticleRefiner()
+            analysis = refiner.analyze_article_coverage(
+                article_to_refine,
+                st.session_state.citation_map,
+                st.session_state.article_sources
+            )
+
+            # Show current stats with IEEE targets from patterns
+            st.markdown("### Current Article Status")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric(
+                    "Current Citations",
+                    analysis.total_citations,
+                    delta=f"{analysis.total_citations - target_citations:+d} vs target {target_citations}"
+                )
+            with col2:
+                st.metric(
+                    "Unused Local Sources",
+                    len(analysis.unused_sources),
+                    help="Local corpus sources not yet cited"
+                )
+            with col3:
+                if has_external_refs:
+                    ext_count = len(st.session_state.get('external_refs_integrated', []))
+                    st.metric("External Refs Integrated", ext_count)
+                else:
+                    st.metric("External Refs", "0 (use Step 2A/2B)")
+            with col4:
+                status = "Yes" if analysis.meets_ieee_minimum else "No"
+                st.metric(f"Meets IEEE Min ({target_citations // 2})", status)
+
+            # Section-by-section word count analysis with expansion recommendations
+            st.markdown("---")
+            st.markdown("### 📊 Section Word Count Analysis & Expansion Recommendations")
+            
+            # Get target word count from session or use default
+            user_target_words = st.session_state.get('word_count', 4569)
+            
+            # Section budgets (percentages)
+            section_budgets = {
+                'Abstract': 0.02,
+                'Introduction': 0.12,
+                'Literature Review': 0.20,
+                'Methodology': 0.25,
+                'Experiments': 0.15,
+                'Results': 0.15,
+                'Discussion': 0.08,
+                'Conclusion': 0.03,
+            }
+            
+            # Parse article into sections and count words
+            def analyze_sections(article_text):
+                import re
+                sections = {}
+                current_section = "Preamble"
+                current_text = []
+                
+                for line in article_text.split('\n'):
+                    # Check for section headers (## Header or # Header)
+                    header_match = re.match(r'^#{1,2}\s+(.+)$', line.strip())
+                    if header_match:
+                        # Save previous section
+                        if current_text:
+                            sections[current_section] = ' '.join(current_text)
+                        # Start new section
+                        header = header_match.group(1).strip()
+                        # Normalize section names
+                        header_lower = header.lower()
+                        if 'abstract' in header_lower:
+                            current_section = 'Abstract'
+                        elif 'introduction' in header_lower:
+                            current_section = 'Introduction'
+                        elif 'literature' in header_lower or 'related work' in header_lower or 'background' in header_lower:
+                            current_section = 'Literature Review'
+                        elif 'method' in header_lower or 'approach' in header_lower:
+                            current_section = 'Methodology'
+                        elif 'experiment' in header_lower or 'evaluation' in header_lower:
+                            current_section = 'Experiments'
+                        elif 'result' in header_lower:
+                            current_section = 'Results'
+                        elif 'discussion' in header_lower:
+                            current_section = 'Discussion'
+                        elif 'conclusion' in header_lower or 'future' in header_lower:
+                            current_section = 'Conclusion'
+                        elif 'reference' in header_lower:
+                            current_section = 'References'
+                        else:
+                            current_section = header
+                        current_text = []
+                    else:
+                        current_text.append(line)
+                
+                # Save last section
+                if current_text:
+                    sections[current_section] = ' '.join(current_text)
+                
+                return sections
+            
+            sections = analyze_sections(article_to_refine)
+            
+            # Calculate word counts and gaps
+            total_body_words = 0
+            section_analysis = []
+            
+            for section_name, target_pct in section_budgets.items():
+                target_words = int(user_target_words * target_pct)
+                actual_words = len(sections.get(section_name, '').split())
+                total_body_words += actual_words
+                gap = target_words - actual_words
+                pct_of_target = (actual_words / target_words * 100) if target_words > 0 else 0
+                
+                section_analysis.append({
+                    'Section': section_name,
+                    'Current': actual_words,
+                    'Target': target_words,
+                    'Gap': gap,
+                    '% of Target': f"{pct_of_target:.0f}%",
+                    'Status': '✅' if gap <= 0 else ('⚠️' if pct_of_target >= 70 else '❌')
+                })
+            
+            # Display as table
+            import pandas as pd
+            df = pd.DataFrame(section_analysis)
+            st.dataframe(df, width='stretch', hide_index=True)
+            
+            # Summary
+            total_gap = user_target_words - total_body_words
+            if total_gap > 0:
+                st.warning(f"⚠️ **Total body words: {total_body_words}** (target: {user_target_words}, need +{total_gap} words)")
+                
+                # Prioritized expansion recommendations
+                needs_expansion = [s for s in section_analysis if s['Gap'] > 0]
+                needs_expansion.sort(key=lambda x: x['Gap'], reverse=True)
+                
+                if needs_expansion:
+                    st.markdown("**🎯 Expansion Recommendations (in priority order):**")
+                    for s in needs_expansion[:5]:
+                        st.markdown(f"- **{s['Section']}**: Add ~{s['Gap']} words (currently {s['Current']}, target {s['Target']})")
+            else:
+                st.success(f"✅ **Total body words: {total_body_words}** — meets target of {user_target_words} words!")
+
+            # Refinement controls
+            st.markdown("---")
+            refine_col1, refine_col2, refine_col3 = st.columns(3)
+
+            with refine_col1:
+                refine_llm = st.selectbox(
+                    "Select Refinement LLM:",
+                    ["OpenAI GPT", "Claude (Anthropic)"],
+                    key="refine_llm_choice",
+                    help="LLM to use for final polishing and consistency improvements (Claude/OpenAI only - higher quality needed)"
+                )
+
+            with refine_col2:
+                target_additional = st.slider(
+                    "Polish Intensity (0 = no new citations):",
+                    min_value=0,
+                    max_value=20,
+                    value=0,
+                    key="target_additional_refs",
+                    help="If >0, the refiner may add a small number of additional in-text citations. Leave at 0 for final polish only."
+                )
+            
+            with refine_col3:
+                current_word_count = len(article_to_refine.split())
+                target_word_count = st.number_input(
+                    "Target Word Count:",
+                    min_value=current_word_count,
+                    max_value=current_word_count + 5000,
+                    value=current_word_count,
+                    step=500,
+                    key="target_word_count_refine",
+                    help=f"Current: {current_word_count} words. Increase to expand article sections."
+                )
+
+            # Model selection for OpenAI
+            if refine_llm == "OpenAI GPT":
+                openai_model = st.selectbox(
+                    "Select OpenAI Model:",
+                    ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1", "o1-mini"],
+                    index=0,
+                    key="openai_model_choice",
+                    help="Choose the OpenAI model for refinement. gpt-4o is recommended for best quality."
+                )
+            else:
+                openai_model = None
+
+            # Note: External references now handled by Layer 2A/2B above
+            num_external_refs = 0
+
+            # Load bibliography analysis (references inside references) to guide refinement targets
+            ref_analysis = None
+            ref_analysis_path = "output/references_analysis_summary.json"
+            if os.path.exists(ref_analysis_path):
+                try:
+                    with open(ref_analysis_path, "r") as f:
+                        ref_analysis = json.load(f)
+                except Exception:
+                    ref_analysis = None
+
+            ref_guidance = ""
+            if ref_analysis:
+                cited_years = ref_analysis.get("cited_years", {})
+                top_venues = ref_analysis.get("top_venues", [])
+                top_families = ref_analysis.get("top_publisher_families", [])
+
+                venue_names = []
+                for v in top_venues[:6]:
+                    if isinstance(v, list) and v:
+                        venue_names.append(str(v[0]))
+                family_names = []
+                for fam in top_families[:6]:
+                    if isinstance(fam, list) and fam:
+                        family_names.append(str(fam[0]))
+
+                ref_guidance = (
+                    "\n\nCitation realism targets (from bibliography analysis of 500 papers):\n"
+                    f"- Cited-year range: {cited_years.get('min', 'N/A')}–{cited_years.get('max', 'N/A')}\n"
+                    f"- Typical recency (p25/p50/p75): {cited_years.get('p25', 'N/A')}/{cited_years.get('p50', 'N/A')}/{cited_years.get('p75', 'N/A')}\n"
+                    f"- Common venues cited: {', '.join(venue_names) if venue_names else 'N/A'}\n"
+                    f"- Common source buckets: {', '.join(family_names) if family_names else 'N/A'}\n"
+                    "When adding citations, bias toward recent (post-2017) work, but include foundational citations where appropriate.\n"
+                )
+
+            # Prompt editor for refinement
+            word_expansion_note = ""
+            section_expansion_guidance = ""
+            
+            # Build section-specific expansion recommendations from analysis
+            # Use the SAME data that was displayed in the UI above
+            needs_expansion = [s for s in section_analysis if s['Gap'] > 0]
+            if needs_expansion:
+                needs_expansion.sort(key=lambda x: x['Gap'], reverse=True)
+                section_expansion_guidance = "\n\n**SECTION-SPECIFIC EXPANSION RECOMMENDATIONS:**\n"
+                section_expansion_guidance += "Based on IEEE standards analysis, expand these sections in priority order:\n\n"
+                for i, s in enumerate(needs_expansion[:5], 1):
+                    # Use the same status logic as the display
+                    gap = s['Gap']
+                    pct = float(s['% of Target'].rstrip('%'))
+                    if gap <= 0:
+                        status_text = 'OK'
+                    elif pct >= 70:
+                        status_text = 'NEEDS EXPANSION'
+                    else:
+                        status_text = 'CRITICAL'
+
+                    status_suffix = f" ({status_text})" if status_text else ""
+                    section_expansion_guidance += f"{i}. **{s['Section']}**{status_suffix}\n"
+                    section_expansion_guidance += f"   - Current: {s['Current']} words\n"
+                    section_expansion_guidance += f"   - Target: {s['Target']} words\n"
+                    section_expansion_guidance += f"   - Need to add: ~{s['Gap']} words\n"
+                    section_expansion_guidance += f"   - Progress: {s['% of Target']}\n\n"
+                section_expansion_guidance += "Focus on adding:\n"
+                section_expansion_guidance += "- More detailed explanations and technical depth\n"
+                section_expansion_guidance += "- Additional examples and case studies\n"
+                section_expansion_guidance += "- Comparative analysis with related work\n"
+                section_expansion_guidance += "- More comprehensive methodology details\n\n"
+            
+            if target_word_count > current_word_count:
+                words_to_add = target_word_count - current_word_count
+                word_expansion_note = f"\n\n**WORD COUNT EXPANSION REQUIRED:**\n- Current: {current_word_count} words\n- Target: {target_word_count} words\n- Add approximately {words_to_add} words total\n"
+            
+            # Build reference preservation constraint
+            reference_preservation_note = ""
+            if st.session_state.get('unified_reference_list'):
+                num_refs = len(st.session_state.unified_reference_list)
+                reference_preservation_note = f"\n\n**CRITICAL: REFERENCE PRESERVATION REQUIREMENT:**\n- The article currently has {num_refs} references that MUST be preserved\n- You may ADD more in-text citations to existing references\n- You may NOT remove any existing citations or references\n- Do NOT modify the References section - it will be rebuilt automatically\n- Focus ONLY on expanding article content, not managing references\n"
+            
+            default_refine_instructions = """Perform final editorial polish while preserving all headings and structure.
+
+Focus on:
+- Improving clarity and flow without changing meaning
+- Fixing grammar, consistency, and IEEE tone
+- Removing repetition and tightening sentences
+- Ensuring terminology and notation are consistent
+
+Do NOT add a References section.
+Do NOT add new citations unless explicitly instructed.""" + reference_preservation_note + section_expansion_guidance + word_expansion_note + ref_guidance
+
+            refine_instructions = st.text_area(
+                "Refinement Prompt (Optional - Customize Refinement Instructions)",
+                value=st.session_state.get('refine_instructions', default_refine_instructions),
+                height=180,
+                key="refine_instructions",
+                help="These instructions are appended to the refinement prompt with highest priority."
+            )
+            
+            # Debug: Show source of truth for section analysis
+            with st.expander("🔍 Debug: Section Analysis Source of Truth", expanded=False):
+                st.markdown("**Current Section Analysis (used for both display and prompt):**")
+                st.json({
+                    'user_target_words': user_target_words,
+                    'section_budgets': section_budgets,
+                    'section_analysis': section_analysis,
+                    'total_body_words': total_body_words,
+                    'note': 'This data is used consistently for both the UI display and the prompt generation'
+                })
+
+            # Show section gaps
+            if analysis.section_gaps:
+                st.markdown("**Sections needing more citations:**")
+                gap_text = ", ".join([f"{s}: +{g}" for s, g in sorted(analysis.section_gaps.items(), key=lambda x: -x[1])[:5]])
+                st.caption(gap_text)
+
+            # Live progress + logs
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            log_area = st.empty()
+
+            refine_logs = []
+
+            def add_refine_log(msg: str):
+                import datetime
+                ts = datetime.datetime.now().strftime("%H:%M:%S")
+                refine_logs.append(f"[{ts}] {msg}")
+                log_area.text("\n".join(refine_logs[-25:]))
+
+            # Refine button
+            if st.button("Run Local Corpus Refinement", type="primary", width='stretch', key="refine_article_btn"):
+                st.session_state.last_refinement_error = None
+
+                # Check API keys
+                if refine_llm == "OpenAI GPT" and not os.getenv('OPENAI_API_KEY'):
+                    st.error("OpenAI API key not found. Set OPENAI_API_KEY environment variable.")
+                elif refine_llm == "Claude (Anthropic)" and not os.getenv('ANTHROPIC_API_KEY'):
+                    st.error("Anthropic API key not found. Set ANTHROPIC_API_KEY environment variable.")
+                else:
+                    try:
+                        progress_bar.progress(5)
+                        status_text.text("Preparing refinement request...")
+                        add_refine_log(f"Refinement LLM: {refine_llm}")
+                        add_refine_log(f"Target additional citations: {target_additional}")
+                        add_refine_log(f"Unused sources available: {len(analysis.unused_sources)}")
+
+                        # Load metadata
+                        progress_bar.progress(15)
+                        status_text.text("Loading metadata...")
+                        metadata_path = "pdf_metadata.json"
+                        refine_metadata = {}
+                        if os.path.exists(metadata_path):
+                            with open(metadata_path, 'r') as f:
+                                refine_metadata = json.load(f)
+
+                        # Build prompt once to show size estimate
+                        progress_bar.progress(25)
+                        status_text.text("Building refinement prompt...")
+                        llm_provider = "openai" if refine_llm == "OpenAI GPT" else "claude"
+                        model_to_use = openai_model if refine_llm == "OpenAI GPT" else None
+                        refiner = ArticleRefiner(llm_provider=llm_provider, model=model_to_use)
+                        add_refine_log(f"Model: {model_to_use or 'default'}")
+
+                        # Preserve external references discovered in Step 2A/2B.
+                        # Step 5 should NOT clear them, otherwise the reference counts jump and the article can lose external refs.
+                        external_refs_for_refiner = st.session_state.get('external_references')
+                        if isinstance(external_refs_for_refiner, list):
+                            from external_reference_fetcher import ExternalReference
+                            normalized = []
+                            for r in external_refs_for_refiner:
+                                if isinstance(r, ExternalReference):
+                                    normalized.append(r)
+                                elif isinstance(r, dict):
+                                    try:
+                                        normalized.append(ExternalReference.from_dict(r))
+                                    except Exception:
+                                        continue
+                            external_refs_for_refiner = normalized
+                        else:
+                            external_refs_for_refiner = None
+
+                        # Legacy mode (kept for backward compatibility): optionally fetch new external refs.
+                        # By default, external references are handled by Step 2A/2B.
+                        if st.session_state.get('enable_web_search'):
+                            progress_bar.progress(15)
+                            status_text.text("Searching internet for external references...")
+                            add_refine_log(f"Fetching {num_external_refs} external references from Semantic Scholar...")
+
+                            from web_search_references import fetch_external_references
+
+                            max_corpus_num = max(st.session_state.citation_map.values()) if st.session_state.citation_map else 0
+                            try:
+                                external_refs_for_refiner = fetch_external_references(
+                                    article_text=article_to_refine,
+                                    num_external_refs=num_external_refs,
+                                    start_citation_number=max_corpus_num + 1,
+                                    min_citations=10
+                                )
+                                st.session_state.external_references = external_refs_for_refiner
+                                add_refine_log(f"✅ Found {len(external_refs_for_refiner)} external papers")
+                                if external_refs_for_refiner:
+                                    add_refine_log(
+                                        f"Citation range: [{external_refs_for_refiner[0].citation_number}] to [{external_refs_for_refiner[-1].citation_number}]"
+                                    )
+                            except Exception as e:
+                                add_refine_log(f"⚠️ Web search failed: {str(e)}")
+                        prompt_preview = refiner._build_refinement_prompt(
+                            article_text=article_to_refine,
+                            analysis=analysis,
+                            citation_map=st.session_state.citation_map,
+                            sources_list=st.session_state.article_sources,
+                            target_additional=target_additional,
+                            metadata=refine_metadata,
+                            user_instructions=refine_instructions
+                        )
+                        add_refine_log(f"Prompt size: {len(prompt_preview):,} characters")
+                        estimated_tokens = len(prompt_preview)//4
+                        add_refine_log(f"Estimated prompt tokens: ~{estimated_tokens:,}")
+                        # Cost estimation (GPT-4o: $2.50/1M input, $10/1M output; assume 2x output)
+                        if llm_provider == "openai":
+                            input_cost = (estimated_tokens / 1_000_000) * 2.50
+                            output_cost = (estimated_tokens * 2 / 1_000_000) * 10.00
+                            total_cost = input_cost + output_cost
+                            add_refine_log(f"Estimated cost: ${total_cost:.3f} (input: ${input_cost:.3f}, output: ${output_cost:.3f})")
+
+                        # Run refinement (recreate refiner to ensure model is set)
+                        progress_bar.progress(40)
+                        status_text.text("Calling LLM (this may take 30-180s)...")
+                        add_refine_log("Sending request to LLM...")
+                        refiner = ArticleRefiner(llm_provider=llm_provider, model=model_to_use)
+
+                        refined_article, report = refiner.refine_article(
+                            article_text=article_to_refine,
+                            citation_map=st.session_state.citation_map,
+                            sources_list=st.session_state.article_sources,
+                            target_additional_refs=target_additional,
+                            metadata=refine_metadata,
+                            user_instructions=refine_instructions,
+                            external_refs=external_refs_for_refiner
+                        )
+
+                        progress_bar.progress(85)
+                        status_text.text("Validating and finalizing...")
+                        add_refine_log(f"Validation: {'PASSED' if report.validation_passed else 'ISSUES'}")
+                        add_refine_log(f"Citations added: {report.citations_added}")
+                        add_refine_log(f"Sources integrated: {report.unused_sources_integrated}")
+
+                        # Store refined article separately (do not overwrite base)
+                        st.session_state.refined_article = refined_article
+                        st.session_state.refinement_report = report
+                        
+                        # Rebuild References section with external refs if any
+                        progress_bar.progress(90)
+                        status_text.text("Rebuilding References section...")
+                        add_refine_log("Rebuilding References section...")
+                        
+                        cm = CitationManager()
+                        
+                        # CRITICAL: Preserve ALL references from Step 4 to prevent loss
+                        # Extract citations from refined article for validation only
+                        cited_numbers = cm.extract_citations_from_article(refined_article)
+                        
+                        # If we have Step 4's unified reference list, use it COMPLETELY (no filtering)
+                        if st.session_state.get('unified_reference_list'):
+                            add_refine_log("Using COMPLETE unified reference list from Step 4 (preserving all references)")
+                            all_unified_refs = st.session_state.unified_reference_list
+                            
+                            # Validate: check if any references were lost
+                            step4_ref_numbers = set()
+                            for ref in all_unified_refs:
+                                match = re.match(r'\[(\d+)\]', ref)
+                                if match:
+                                    step4_ref_numbers.add(int(match.group(1)))
+                            
+                            # Check for missing citations
+                            missing_citations = step4_ref_numbers - cited_numbers
+                            if missing_citations:
+                                add_refine_log(f"⚠️ Warning: {len(missing_citations)} references not cited in refined article: {sorted(list(missing_citations))[:10]}")
+                                add_refine_log("These references are preserved in the reference list even if not cited")
+                            
+                            # Use ALL references from Step 4, preserving complete list
+                            refs_section = "\n## References\n\n" + "\n\n".join(all_unified_refs)
+                            add_refine_log(f"✅ Preserved all {len(all_unified_refs)} references from Step 4")
+                        else:
+                            # Build references from scratch (fallback for articles without Step 4)
+                            add_refine_log("Building reference list from citations in refined article")
+                            refs_section = cm.build_reference_list_from_citations(
+                                refined_article,
+                                st.session_state.citation_map,
+                                external_refs=external_refs_for_refiner
+                            )
+                        
+                        # Replace or append references section
+                        if "## References" in refined_article:
+                            refined_article = refined_article.split("## References")[0] + refs_section
+                        else:
+                            refined_article += "\n" + refs_section
+                        
+                        st.session_state.refined_article = refined_article
+                        
+                        if external_refs_for_refiner:
+                            add_refine_log(f"✅ Added {len(external_refs_for_refiner)} external references to References section")
+
+                        progress_bar.progress(100)
+                        status_text.text("✅ Layer 2 refinement complete")
+                        st.success(f"✅ Layer 2 complete. Added {report.citations_added} citations.")
+                        
+                        # Save Step 5 results to cache
+                        ext_refs_serialized = None
+                        if st.session_state.get('external_references'):
+                            ext_refs_serialized = [ref.to_dict() if hasattr(ref, 'to_dict') else ref 
+                                                   for ref in st.session_state.external_references]
+                        
+                        _save_ui_cache({
+                            'answer_result': st.session_state.get('answer_result'),
+                            'generated_article': st.session_state.get('generated_article'),
+                            'base_generated_article': st.session_state.get('base_generated_article'),
+                            'article_sources': st.session_state.get('article_sources'),
+                            'citation_map': st.session_state.get('citation_map'),
+                            'citation_stats': st.session_state.get('citation_stats'),
+                            'reference_list': st.session_state.get('reference_list'),
+                            'article_topic_stored': st.session_state.get('article_topic_stored'),
+                            'refined_article': st.session_state.refined_article,
+                            'refinement_report': st.session_state.refinement_report,
+                            'external_references': ext_refs_serialized,
+                            'external_enhanced_article': st.session_state.get('external_enhanced_article'),
+                            'unified_citation_map': st.session_state.get('unified_citation_map'),
+                            'unified_reference_list': st.session_state.get('unified_reference_list'),
+                        })
+                        add_refine_log("💾 Saved Step 5 results to cache")
+
+                    except Exception as e:
+                        st.session_state.last_refinement_error = str(e)
+                        progress_bar.progress(100)
+                        status_text.text("❌ Refinement failed")
+                        st.error(f"Refinement error: {str(e)}")
+                        import traceback
+                        st.code(traceback.format_exc())
+
+            # Show previous refinement report if exists
+            if st.session_state.get('refinement_report'):
+                report = st.session_state.refinement_report
+                st.markdown("### Last Refinement Results")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Citations Added", f"+{report.citations_added}")
+                with col2:
+                    st.metric("Sources Integrated", report.unused_sources_integrated)
+                with col3:
+                    st.metric("Validation", "✅ Passed" if report.validation_passed else "⚠️ Issues")
+
+                st.markdown("### Refinement Report")
+                report_text = create_refinement_report(report)
+                st.code(report_text, language="text")
+
+            # Display refined article below draft (if available)
+            if st.session_state.get('refined_article'):
+                st.divider()
+                st.subheader("✅ Layer 2 Output: Refined Article")
+                cm = CitationManager()
+                refined_title, refined_body = cm.extract_title(st.session_state.refined_article)
+                st.markdown(f"**Title:** {refined_title}")
+                # Apply normalization to fix malformed LaTeX
+                normalized_refined_body = _normalize_article_for_rendering(refined_body)
+                st.markdown(normalized_refined_body)
+
+                col_a, col_b, col_c = st.columns(3)
+                with col_a:
+                    if st.button("✅ Use Refined Version as Active Article", width='stretch', key="promote_refined"):
+                        st.session_state.generated_article = st.session_state.refined_article
+                        st.success("Active article replaced with refined version.")
+                        st.rerun()
+                with col_b:
+                    st.download_button(
+                        label="📥 Download Refined Markdown",
+                        data=st.session_state.refined_article,
+                        file_name="refined_article.md",
+                        mime="text/markdown",
+                        width='stretch'
+                    )
+                with col_c:
+                    # Cache refined PDF bytes as well
+                    import hashlib
+                    refined_sig_src = (st.session_state.refined_article or "")
+                    refined_sig_src += "|" + (st.session_state.get('article_topic_stored') or "")
+                    refined_sig = hashlib.sha256(refined_sig_src.encode("utf-8", errors="ignore")).hexdigest()
+
+                    if st.session_state.get('refined_article_pdf_bytes') is None or st.session_state.get('refined_article_pdf_sig') != refined_sig:
+                        st.session_state.refined_article_pdf_bytes = generate_ieee_refined_pdf(
+                            st.session_state.refined_article,
+                            st.session_state.get('article_topic_stored', 'Refined Article'),
+                        )
+                        st.session_state.refined_article_pdf_sig = refined_sig
+
+                    pdf_bytes = st.session_state.refined_article_pdf_bytes
+                    st.download_button(
+                        label="Download Refined PDF (IEEE-style)",
+                        data=pdf_bytes,
+                        file_name="refined_article_ieee.pdf",
+                        mime="application/pdf",
+                        width='stretch',
+                    )
+        
+        # Show sources used with PDF links
+        if st.session_state.article_sources and 'citation_map' in st.session_state:
+            st.divider()
+            st.subheader("📚 Sources Used in Article with PDF Links")
+            
+            # Get cited papers from citation manager
+            citation_manager = CitationManager()
+            cited_numbers = citation_manager.extract_citations_from_article(st.session_state.generated_article)
+            
+            # Reverse citation map
+            number_to_filename = {num: filename for filename, num in st.session_state.citation_map.items()}
+            
+            # Get unique cited filenames with their citation numbers
+            cited_sources = {}
+            for num in sorted(cited_numbers):
+                if num in number_to_filename:
+                    filename = number_to_filename[num]
+                    # Find score from sources
+                    score = 0.0
+                    for source in st.session_state.article_sources:
+                        if source['filename'] == filename:
+                            score = source.get('score', 0.0)
+                            break
+                    cited_sources[filename] = {'number': num, 'score': score}
+            
+            # Display cited sources with PDF links and metadata
+            # Calculate completeness
+            total_citations = len(cited_numbers)
+            defined_citations = len(cited_sources)
+            completeness = (defined_citations / total_citations * 100) if total_citations > 0 else 0
+            
+            # Status indicator
+            if completeness < 50:
+                status_icon = "🔴"
+                status_text = "CRITICAL"
+            elif completeness < 80:
+                status_icon = "🟡"
+                status_text = "INCOMPLETE"
+            else:
+                status_icon = "🟢"
+                status_text = "COMPLETE"
+            
+            st.markdown(f"**{status_icon} References: {defined_citations}/{total_citations} ({completeness:.0f}% {status_text})**")
+            
+            if completeness < 100:
+                missing_count = total_citations - defined_citations
+                missing_nums = sorted(cited_numbers - set(number_to_filename.keys()))[:10]
+                st.warning(f"⚠️ {missing_count} citations are missing reference entries: {missing_nums}{'...' if missing_count > 10 else ''}. These will show as 'MISSING REFERENCE' in exports.")
+            
+            # Load metadata
+            metadata_path = "pdf_metadata.json"
+            metadata = {}
+            if os.path.exists(metadata_path):
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+            
+            # Use absolute path to PDF folder
+            pdf_folder = "/Users/roan-aparavi/aparavi-repo/Roan-IEEE/downloaded_pdfs"
+            
+            for filename, info in sorted(cited_sources.items(), key=lambda x: x[1]['number']):
+                citation_num = info['number']
+                score = info['score']
+                
+                # Get metadata for this paper
+                paper_meta = metadata.get(filename, {})
+                title = paper_meta.get('title', 'Unknown Title')
+                authors = paper_meta.get('authors', 'Unknown Authors')
+                year = paper_meta.get('year', 'N/A')
+                
+                # Check if PDF exists
+                pdf_path = os.path.join(pdf_folder, filename)
+                pdf_exists = os.path.exists(pdf_path)
+                
+                col1, col2 = st.columns([1, 4])
+                
+                with col1:
+                    st.markdown(f"**[{citation_num}]**")
+                
+                with col2:
+                    if pdf_exists:
+                        # Show title and authors with open button
+                        col_info, col_btn = st.columns([4, 1])
+                        with col_info:
+                            st.markdown(f"📄 **{title}**")
+                            st.caption(f"👥 {authors} ({year})")
+                            st.caption(f"📁 {filename} • Relevance: {score:.2%}")
+                        with col_btn:
+                            if st.button("📂 Open", key=f"open_{citation_num}", help="Open PDF in system viewer"):
+                                try:
+                                    subprocess.run(['open', pdf_path], check=True)
+                                    st.success("Opening PDF...", icon="✅")
+                                except Exception as e:
+                                    st.error(f"Error opening PDF: {e}")
+                    else:
+                        st.markdown(f"📄 **{title}**")
+                        st.caption(f"👥 {authors} ({year})")
+                        st.caption(f"📁 {filename} (PDF not found) • Relevance: {score:.2%}")
+            
+            # Show uncited papers if any
+            all_papers = set(st.session_state.citation_map.keys())
+            cited_papers = set(cited_sources.keys())
+            uncited_papers = all_papers - cited_papers
+            
+            if uncited_papers:
+                with st.expander(f"⚠️ Uncited Papers ({len(uncited_papers)} not used)"):
+                    st.caption("These papers were retrieved but not cited in the article:")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Word Count", "6,629", help="Mean word count")
+        with col2:
+            st.metric("References", "42", help="Mean reference count")
+        with col3:
+            st.metric("Figures", "23", help="Mean figure count")
+        with col4:
+            st.metric("Acceptance Rate", "27%", help="IEEE Access acceptance rate")
+            # (Removed accidental rerun; it caused post-generation flicker and could invalidate media downloads)
+        
+        # Get available collections
+        try:
+            from qdrant_client import QdrantClient
+            client = QdrantClient(host="localhost", port=6333)
+            collections = client.get_collections().collections
+            collection_names = [c.name for c in collections]
+            
+            if collection_names:
+                # Sort collections by name (newest/full collections first)
+                # Prioritize: full_specter2 > specter2_v2 > specter > others
+                def collection_priority(name):
+                    if "full_specter2" in name:
+                        return 0
+                    elif "specter2_v2" in name:
+                        return 1
+                    elif "specter2" in name:
+                        return 2
+                    elif "specter" in name:
+                        return 3
+                    else:
+                        return 4
+                
+                sorted_collections = sorted(collection_names, key=collection_priority)
+                
+                # Collection selector - default to first (highest priority)
+                selected_collection = st.selectbox(
+                    "Select Collection:",
+                    sorted_collections,
+                    index=0,
+                    key="selected_collection"
+                )
+                
+                # Store in session state
+                st.session_state.active_collection = selected_collection
+                
+                # Get collection info
+                collection_info = client.get_collection(selected_collection)
+                
+                # Display collection metadata
+                st.success("✓ Collection Active")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Vectors", f"{collection_info.points_count:,}")
+                with col2:
+                    st.metric("Dimension", collection_info.config.params.vectors.size)
+                
+                # Estimate number of papers (avg 80 chunks per paper)
+                est_papers = collection_info.points_count // 80
+                st.metric("Est. Papers", f"~{est_papers}")
+                
+                # Show collection details in expander
+                with st.expander("📋 Collection Details"):
+                    st.write(f"**Name:** `{selected_collection}`")
+                    st.write(f"**Total Vectors:** {collection_info.points_count:,}")
+                    st.write(f"**Vector Dimension:** {collection_info.config.params.vectors.size}")
+                    st.write(f"**Distance Metric:** {collection_info.config.params.vectors.distance}")
+                    st.write(f"**Estimated Papers:** ~{est_papers}")
+                    
+                    # Embedding model info based on collection name and dimension
+                    if collection_info.config.params.vectors.size == 768:
+                        if "specter2" in selected_collection.lower():
+                            st.write("**Embedding Model:** SPECTER2 base (academic, 2023)")
+                        else:
+                            st.write("**Embedding Model:** allenai-specter (academic, 2020)")
+                    elif collection_info.config.params.vectors.size == 384:
+                        st.write("**Embedding Model:** all-MiniLM-L6-v2 (general)")
+                    else:
+                        st.write("**Embedding Model:** Unknown")
+            else:
+                st.warning("No collections found")
+                st.session_state.active_collection = None
+        except Exception as e:
+            st.error("✗ Qdrant Not Connected")
+            st.caption(f"Error: {str(e)}")
+            st.session_state.active_collection = None
+        
+        st.divider()
+        
+        # Navigation Menu
+        st.header("📍 Quick Navigation")
+        st.markdown("""
+        <style>
+        .nav-menu a {
+            display: block;
+            padding: 8px 12px;
+            margin: 4px 0;
+            text-decoration: none;
+            background-color: #f0f2f6;
+            color: #1f77b4;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        .nav-menu a:hover {
+            background-color: #e1e5e9;
+            color: #0d47a1;
+        }
+        </style>
+        <div class="nav-menu">
+        <a href="#step1">📝 Step 1: Generate Article</a>
+        <a href="#step2a">🔍 Step 2A: Discover References</a>
+        <a href="#step2b">🔗 Step 2B: Integrate References</a>
+        <a href="#step3">✨ Step 3: Enhanced Article</a>
+        <a href="#step4">⚡ Step 4: Refine Article</a>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        st.header("ℹ️ About")
+        st.markdown("""
+        This application uses:
+        - **Qdrant** for vector storage
+        - **allenai-specter** for embeddings
+        - **Ollama/OpenAI/Claude** for generation
+        
+        **Features:**
+        - Semantic search across papers
+        - AI-powered Q&A with citations
+        - Automated article synthesis
+        - MMR diverse retrieval (15x improvement)
+        """)
+        
+        st.divider()
+        
+        st.header("🔑 API Keys")
+        st.caption("Set via environment variables:")
+        
+        if os.getenv('OPENAI_API_KEY'):
+            st.success("✓ OpenAI")
+        else:
+            st.warning("✗ OpenAI")
+        
+        if os.getenv('ANTHROPIC_API_KEY'):
+            st.success("✓ Anthropic")
+        else:
+            st.warning("✗ Anthropic")
+        
+        st.info("ℹ️ Ollama (local)")
+        
+        st.divider()
+        
+        st.markdown("""
+        ### 🚀 Quick Start
+        1. **Q&A**: Ask questions about papers
+        2. **Articles**: Generate synthesis articles
+        3. **Graph**: Explore document relationships
+        4. **Vectors**: Visualize embedding space
+        
+        ### 📁 Resources
+        """)
+        
+        # Links to generated files
+        if os.path.exists("knowledge_graph_current.html"):
+            st.markdown("[🕸️ Knowledge Graph](knowledge_graph_current.html)")
+        if os.path.exists("vector_viz_current.html"):
+            st.markdown("[📊 Vector Visualization](vector_viz_current.html)")
+        if os.path.exists("knowledge_graph_100.html"):
+            st.markdown("[🕸️ Graph (100 PDFs)](knowledge_graph_100.html)")
+        if os.path.exists("vector_viz_100_2d.html"):
+            st.markdown("[📊 Vectors (100 PDFs)](vector_viz_100_2d.html)")
+
+
+def render_sidebar():
+    """Render sidebar with system info and navigation."""
+    with st.sidebar:
+        st.header("🗄️ Database")
+        
+        # Get available collections
+        try:
+            from qdrant_client import QdrantClient
+            client = QdrantClient(host="localhost", port=6333)
+            collections = client.get_collections().collections
+            collection_names = [c.name for c in collections]
+            
+            if collection_names:
+                # Sort collections by name (newest/full collections first)
+                def collection_priority(name):
+                    if "full_specter2" in name:
+                        return 0
+                    elif "specter2_v2" in name:
+                        return 1
+                    elif "specter2" in name:
+                        return 2
+                    elif "specter" in name:
+                        return 3
+                    else:
+                        return 4
+                
+                sorted_collections = sorted(collection_names, key=collection_priority)
+                
+                selected_collection = st.selectbox(
+                    "Select Collection:",
+                    sorted_collections,
+                    index=0,
+                    key="selected_collection"
+                )
+                
+                st.session_state.active_collection = selected_collection
+                
+                collection_info = client.get_collection(selected_collection)
+                
+                st.success("✓ Collection Active")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Vectors", f"{collection_info.points_count:,}")
+                with col2:
+                    st.metric("Dimension", collection_info.config.params.vectors.size)
+                
+                est_papers = collection_info.points_count // 80
+                st.metric("Est. Papers", f"~{est_papers}")
+                
+                with st.expander("📋 Collection Details"):
+                    st.write(f"**Name:** `{selected_collection}`")
+                    st.write(f"**Total Vectors:** {collection_info.points_count:,}")
+                    st.write(f"**Vector Dimension:** {collection_info.config.params.vectors.size}")
+                    st.write(f"**Distance Metric:** {collection_info.config.params.vectors.distance}")
+                    st.write(f"**Estimated Papers:** ~{est_papers}")
+                    
+                    if collection_info.config.params.vectors.size == 768:
+                        if "specter2" in selected_collection.lower():
+                            st.write("**Embedding Model:** SPECTER2 base (academic, 2023)")
+                        else:
+                            st.write("**Embedding Model:** allenai-specter (academic, 2020)")
+                    elif collection_info.config.params.vectors.size == 384:
+                        st.write("**Embedding Model:** all-MiniLM-L6-v2 (general)")
+                    else:
+                        st.write("**Embedding Model:** Unknown")
+            else:
+                st.warning("No collections found")
+                st.session_state.active_collection = None
+        except Exception as e:
+            st.error("✗ Qdrant Not Connected")
+            st.caption(f"Error: {str(e)}")
+            st.session_state.active_collection = None
+        
+        st.divider()
+        
+        st.header("ℹ️ About")
+        st.markdown("""
+        This application uses:
+        - **Qdrant** for vector storage
+        - **allenai-specter** for embeddings
+        - **Ollama/OpenAI/Claude** for generation
+        
+        **Features:**
+        - Semantic search across papers
+        - AI-powered Q&A with citations
+        - Automated article synthesis
+        - MMR diverse retrieval (15x improvement)
+        """)
+        
+        st.divider()
+        
+        st.header("🔑 API Keys")
+        st.caption("Set via environment variables:")
+        
+        if os.getenv('OPENAI_API_KEY'):
+            st.success("✓ OpenAI")
+        else:
+            st.warning("✗ OpenAI")
+        
+        if os.getenv('ANTHROPIC_API_KEY'):
+            st.success("✓ Anthropic")
+        else:
+            st.warning("✗ Anthropic")
+        
+        st.info("ℹ️ Ollama (local)")
+
+
+def main():
+    """Main application entry point."""
+    init_session_state()
+    render_header()
+    render_sidebar()
+    
+    # Main content tabs
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "✍️ Article Generation", 
+        "🔍 Q&A Analysis", 
+        "🔬 Research Analysis", 
+        "📚 Paper Explorer",
+        "📊 Article Analysis"
+    ])
+    
+    with tab1:
+        render_synthesis_section()
+    
+    with tab2:
+        render_analysis_section()
+    
+    with tab3:
+        render_research_analysis()
+    
+    with tab4:
+        render_paper_explorer()
+    
+    with tab5:
+        render_article_analysis()
+    
+    # Footer
+    st.divider()
+    st.caption("Academic Paper Analysis & Generation System | Built with Streamlit, Qdrant, and AI")
+
+
+if __name__ == '__main__':
+    main()
