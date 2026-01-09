@@ -1701,15 +1701,7 @@ def init_session_state():
         cached = _load_ui_cache()
         cache_restored = False
         
-        # Debug: Show cache file status
-        cache_file_exists = os.path.exists(_UI_CACHE_PATH)
-        
-        if cache_file_exists and cached:
-            st.success(f"✅ Cache file found! Loading {len(cached)} items...")
-        elif cache_file_exists and not cached:
-            st.warning(f"⚠️ Cache file exists at {_UI_CACHE_PATH} but is empty or corrupted")
-        else:
-            st.info(f"ℹ️ No cache file found at {_UI_CACHE_PATH} - starting fresh")
+        # Silently load cache without status messages
         
         if isinstance(cached, dict):
             items_restored = []
@@ -1775,9 +1767,7 @@ def init_session_state():
                 if cached.get('refine_instructions') is not None:
                     st.session_state.refine_instructions = cached.get('refine_instructions')
                 
-                # Show success message with details of what was restored
-                if cache_restored and items_restored:
-                    st.success(f"✅ Restored from cache: {', '.join(items_restored)}", icon="🔄")
+                # Silently restore from cache
         st.session_state._ui_cache_loaded = True
 
 
@@ -1789,92 +1779,6 @@ def render_header():
     Ask questions or generate comprehensive articles based on the research literature.
     """)
     st.divider()
-    
-    # Add cache management section at the top
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
-    
-    with col1:
-        if st.button("💾 Save Work", help="Manually save all current work to cache"):
-            _save_ui_cache({
-                'answer_result': st.session_state.get('answer_result'),
-                'generated_article': st.session_state.get('generated_article'),
-                'base_generated_article': st.session_state.get('base_generated_article'),
-                'article_sources': st.session_state.get('article_sources'),
-                'citation_map': st.session_state.get('citation_map'),
-                'citation_stats': st.session_state.get('citation_stats'),
-                'reference_list': st.session_state.get('reference_list'),
-                'article_topic_stored': st.session_state.get('article_topic_stored'),
-                'refined_article': st.session_state.get('refined_article'),
-                'refinement_report': st.session_state.get('refinement_report'),
-                'word_count': st.session_state.get('word_count'),
-                'selected_model': st.session_state.get('selected_model'),
-                'selected_llm': st.session_state.get('selected_llm'),
-                'refine_instructions': st.session_state.get('refine_instructions'),
-            })
-            st.success("✅ Work saved successfully!", icon="✅")
-    
-    with col2:
-        # Get list of backup files
-        import glob
-        import datetime
-        backup_files = glob.glob(os.path.join(_UI_CACHE_DIR, "ui_cache_backup_*.json"))
-        backup_files.sort(reverse=True)  # Most recent first
-        
-        if backup_files:
-            # Create options with timestamps
-            backup_options = {}
-            for backup_file in backup_files[:10]:  # Show last 10 backups
-                filename = os.path.basename(backup_file)
-                # Extract timestamp from filename: ui_cache_backup_20260108_005221.json
-                timestamp_str = filename.replace('ui_cache_backup_', '').replace('.json', '')
-                try:
-                    dt = datetime.datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
-                    file_size = os.path.getsize(backup_file)
-                    size_mb = file_size / (1024 * 1024)
-                    display_name = f"{dt.strftime('%m/%d %I:%M:%S %p')} ({size_mb:.1f}MB)"
-                    backup_options[display_name] = backup_file
-                except (ValueError, OSError):
-                    backup_options[filename] = backup_file
-            
-            selected_backup = st.selectbox(
-                "📂 Restore from Backup:",
-                options=list(backup_options.keys()),
-                key="backup_selector",
-                help="Select a backup to restore your work"
-            )
-            
-            if st.button("🔄 Restore", help="Restore selected backup"):
-                backup_path = backup_options[selected_backup]
-                try:
-                    import shutil
-                    shutil.copy(backup_path, _UI_CACHE_PATH)
-                    st.success(f"✅ Restored from {selected_backup}")
-                    st.info("🔄 Please refresh the page to load the restored data")
-                except Exception as e:
-                    st.error(f"Failed to restore backup: {e}")
-        else:
-            st.info("No backups available")
-    
-    with col3:
-        if st.button("🗑️ Clear Cache", help="Clear all cached work"):
-            _save_ui_cache({
-                'answer_result': _UI_CACHE_DELETE,
-                'generated_article': _UI_CACHE_DELETE,
-                'base_generated_article': _UI_CACHE_DELETE,
-                'article_sources': _UI_CACHE_DELETE,
-                'citation_map': _UI_CACHE_DELETE,
-                'citation_stats': _UI_CACHE_DELETE,
-                'reference_list': _UI_CACHE_DELETE,
-                'article_topic_stored': _UI_CACHE_DELETE,
-                'refined_article': _UI_CACHE_DELETE,
-                'refinement_report': _UI_CACHE_DELETE,
-                'word_count': _UI_CACHE_DELETE,
-                'selected_model': _UI_CACHE_DELETE,
-                'selected_llm': _UI_CACHE_DELETE,
-                'refine_instructions': _UI_CACHE_DELETE,
-            })
-            st.session_state.clear()
-            st.rerun()
 
 
 def render_analysis_section():
@@ -2521,18 +2425,8 @@ def render_paper_explorer():
 
 def render_synthesis_section():
     """Render the article synthesis section."""
-    st.header("✍️ Section 2 — Step 1: Synthesis Article Generator")
+    st.header("Step 1: Synthesis Article Generator")
     st.markdown("Generate a comprehensive academic article by synthesizing information from multiple papers.")
-    st.markdown(
-        """
-**Section 2 Milestones (recommended flow):**
-- **Step 1**: Synthesis Article Generator
-- **Step 2**: External Reference Discovery (2.1 Extract Keywords, 2.2 Internet Search)
-- **Step 3**: Integrate External References into Article
-- **Step 4**: Enhanced Article (Local + External References)
-- **Step 5**: Advanced Local Corpus Refinement
-"""
-    )
     
     # LLM selection
     col1, col2 = st.columns([2, 1])
@@ -2643,7 +2537,6 @@ def render_synthesis_section():
     
     # Technical/Mathematical Rigor Control
     st.markdown("### 🔬 Technical & Mathematical Rigor")
-    st.caption("📊 Based on analysis of 5,634 IEEE papers: 99% include math, avg 41 equations/symbols per paper")
     rigor_level = st.select_slider(
         "Select Technical Depth Level:",
         options=[
@@ -3377,223 +3270,8 @@ ARTICLE TO REWRITE (no citations present):
             # Do NOT use unsafe_allow_html here; it can interfere with MathJax rendering.
             st.markdown(normalized_body)
             
-            # Word Count Analysis for Generated Article
-            st.markdown("---")
-            st.subheader("📊 Article Word Count Analysis")
-            
-            # Parse the generated article to analyze sections
-            def analyze_generated_article(article_text):
-                import re
-                sections = {}
-                current_section = "Preamble"
-                current_text = []
-                
-                for line in article_text.split('\n'):
-                    # Check for section headers (## Header or # Header)
-                    header_match = re.match(r'^#{1,2}\s+(.+)$', line.strip())
-                    if header_match:
-                        # Save previous section
-                        if current_text:
-                            sections[current_section] = ' '.join(current_text)
-                        # Start new section
-                        header = header_match.group(1).strip()
-                        # Normalize section names
-                        header_lower = header.lower()
-                        if 'abstract' in header_lower:
-                            current_section = 'Abstract'
-                        elif 'introduction' in header_lower:
-                            current_section = 'Introduction'
-                        elif 'literature' in header_lower or 'related work' in header_lower or 'background' in header_lower:
-                            current_section = 'Literature Review'
-                        elif 'method' in header_lower or 'approach' in header_lower:
-                            current_section = 'Methodology'
-                        elif 'experiment' in header_lower or 'evaluation' in header_lower:
-                            current_section = 'Experiments'
-                        elif 'result' in header_lower:
-                            current_section = 'Results'
-                        elif 'discussion' in header_lower:
-                            current_section = 'Discussion'
-                        elif 'conclusion' in header_lower or 'future' in header_lower:
-                            current_section = 'Conclusion'
-                        elif 'reference' in header_lower:
-                            current_section = 'References'
-                        else:
-                            current_section = header
-                        current_text = []
-                    else:
-                        current_text.append(line)
-                
-                # Save last section
-                if current_text:
-                    sections[current_section] = ' '.join(current_text)
-                
-                return sections
-            
-            # Get target word count from session
-            target_word_count = st.session_state.get('word_count', 4569)
-            
-            # Section budgets (same as before)
-            section_budgets = {
-                'Abstract': 0.02,
-                'Introduction': 0.12,
-                'Literature Review': 0.20,
-                'Methodology': 0.25,
-                'Experiments': 0.15,
-                'Results': 0.15,
-                'Discussion': 0.08,
-                'Conclusion': 0.03,
-            }
-            
-            # Analyze the generated article
-            generated_sections = analyze_generated_article(article_body)
-            
-            # Build analysis table
-            analysis_data = []
-            total_words = 0
-            
-            for section_name, target_pct in section_budgets.items():
-                target_words = int(target_word_count * target_pct)
-                actual_words = len(generated_sections.get(section_name, '').split())
-                total_words += actual_words
-                gap = target_words - actual_words
-                pct_of_target = (actual_words / target_words * 100) if target_words > 0 else 0
-                
-                analysis_data.append({
-                    'Section': section_name,
-                    'Current': actual_words,
-                    'Target': target_words,
-                    'Gap': gap,
-                    '% of Target': f"{pct_of_target:.0f}%",
-                    'Status': '✅' if abs(gap) <= 50 else ('⚠️' if pct_of_target >= 80 else '❌')
-                })
-            
-            # Display analysis
-            import pandas as pd
-            df = pd.DataFrame(analysis_data)
-            st.dataframe(df, width='stretch', hide_index=True)
-            
-            # Summary
-            total_gap = target_word_count - total_words
-            if total_gap > 0:
-                st.warning(f"⚠️ **Total words: {total_words}** (target: {target_word_count}, need +{total_gap} words)")
-            elif total_gap < 0:
-                st.info(f"ℹ️ **Total words: {total_words}** (target: {target_word_count}, exceeds by {-total_gap} words)")
-            else:
-                st.success(f"✅ **Total words: {total_words}** — meets target of {target_word_count} words!")
-            
-            # Quick recommendations
-            needs_expansion = [s for s in analysis_data if s['Gap'] > 50]
-            needs_reduction = [s for s in analysis_data if s['Gap'] < -50]
-            
-            if needs_expansion or needs_reduction:
-                st.markdown("**📌 Quick Recommendations:**")
-                if needs_expansion:
-                    st.markdown("**Sections to expand:**")
-                    for s in needs_expansion[:3]:
-                        st.markdown(f"- {s['Section']}: Add +{s['Gap']} words")
-                if needs_reduction:
-                    st.markdown("**Sections to reduce:**")
-                    for s in needs_reduction[:3]:
-                        st.markdown(f"- {s['Section']}: Remove {-s['Gap']} words")
-                        if 'Abstract' in s['Section']:
-                            st.markdown("  *Important: Remove formulas, equations, and citations from abstract*")
-            
-            # Comprehensive Analysis Table with Final Verdict
-            st.markdown("---")
-            st.subheader("📋 Comprehensive Article Analysis")
-            
-            # Create detailed analysis dataframe
-            import pandas as pd
-            
-            # Add compliance status
-            for s in analysis_data:
-                gap = abs(s['Gap'])
-                if gap <= 50:
-                    s['Compliance'] = '✅ Compliant'
-                elif gap <= 100:
-                    s['Compliance'] = '⚠️ Minor Deviation'
-                else:
-                    s['Compliance'] = '❌ Major Deviation'
-            
-            # Display comprehensive table
-            df_detailed = pd.DataFrame(analysis_data)
-            
-            # Format the dataframe for better display
-            display_df = df_detailed.copy()
-            display_df['Status'] = display_df.apply(lambda row: 
-                f"{row['Status']} {row['Compliance']}", axis=1)
-            
-            st.dataframe(display_df, width='stretch', hide_index=True)
-            
-            # Calculate overall metrics
-            total_sections = len(analysis_data)
-            compliant_sections = len([s for s in analysis_data if abs(s['Gap']) <= 50])
-            compliant_pct = (compliant_sections / total_sections * 100) if total_sections > 0 else 0
-            
-            # Final Verdict
-            st.markdown("---")
-            st.markdown("### 🏁 Final Verdict")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric(
-                    "Overall Compliance", 
-                    f"{compliant_pct:.1f}%",
-                    delta=f"{compliant_sections}/{total_sections} sections"
-                )
-            
-            with col2:
-                if total_gap > 0:
-                    st.metric("Word Count Status", "⚠️ Under Target", delta=f"+{total_gap} words needed")
-                elif total_gap < 0:
-                    st.metric("Word Count Status", "⚠️ Over Target", delta=f"{total_gap} words excess")
-                else:
-                    st.metric("Word Count Status", "✅ On Target", delta="Perfect")
-            
-            with col3:
-                if compliant_pct >= 80:
-                    verdict = "✅ PASS"
-                    verdict_color = "green"
-                elif compliant_pct >= 60:
-                    verdict = "⚠️ MARGINAL"
-                    verdict_color = "orange"
-                else:
-                    verdict = "❌ FAIL"
-                    verdict_color = "red"
-                
-                st.markdown(f"<h3 style='color: {verdict_color}; text-align: center;'>{verdict}</h3>", unsafe_allow_html=True)
-            
-            # Detailed recommendations
-            st.markdown("#### 📝 Detailed Recommendations")
-            
-            if compliant_pct >= 80:
-                st.success("🎉 **Excellent!** Your article meets IEEE standards. Minor adjustments may improve it further.")
-            elif compliant_pct >= 60:
-                st.warning("⚠️ **Acceptable with revisions.** Focus on the sections marked with major deviations to meet IEEE standards.")
-            else:
-                st.error("❌ **Significant revisions needed.** Multiple sections deviate from IEEE standards. Please review and adjust.")
-            
-            # Section-specific advice
-            st.markdown("#### 🔍 Section-by-Section Analysis")
-            for s in analysis_data:
-                if abs(s['Gap']) > 50:
-                    section_name = s['Section']
-                    gap = s['Gap']
-                    current = s['Current']
-                    target = s['Target']
-                    
-                    if gap > 0:
-                        st.markdown(f"**{section_name}**: Needs expansion (+{gap} words)")
-                        st.markdown(f"- Current: {current} words, Target: {target} words")
-                        st.markdown("- Consider adding more detailed explanations, examples, or analysis")
-                    else:
-                        st.markdown(f"**{section_name}**: Needs reduction ({gap} words)")
-                        st.markdown(f"- Current: {current} words, Target: {target} words")
-                        st.markdown("- Remove redundancy while preserving key content")
-                        if 'Abstract' in section_name:
-                            st.markdown("- **Critical**: Remove all formulas, equations, and citations")
-                    st.markdown("")
+            # Removed redundant Article Word Count Analysis and Metrics sections
+            # The section analysis functionality is preserved in the refinement step (Step 5)
         
         # Show citation analysis report
         if 'citation_map' in st.session_state and 'article_sources' in st.session_state and st.session_state.generated_article:
@@ -3691,39 +3369,11 @@ ARTICLE TO REWRITE (no citations present):
                 article_sources
             )
 
-            # Show current stats with IEEE targets from patterns
-            st.markdown("### Current Article Status")
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric(
-                    "Current Citations",
-                    analysis.total_citations,
-                    delta=f"{analysis.total_citations - target_citations:+d} vs target {target_citations}"
-                )
-            with col2:
-                st.metric(
-                    "Unused Local Sources",
-                    len(analysis.unused_sources),
-                    help="Local corpus sources not yet cited"
-                )
-            with col3:
-                if has_external_refs:
-                    ext_count = len(st.session_state.get('external_refs_integrated', []))
-                    st.metric("External Refs Integrated", ext_count)
-                else:
-                    st.metric("External Refs", "0 (use Step 2A/2B)")
-            with col4:
-                status = "Yes" if analysis.meets_ieee_minimum else "No"
-                st.metric(f"Meets IEEE Min ({target_citations // 2})", status)
-
-            # Section-by-section word count analysis with expansion recommendations
-            st.markdown("---")
-            st.markdown("### 📊 Section Word Count Analysis & Expansion Recommendations")
+            # Calculate section analysis data (needed for refinement logic)
+            # UI display removed, but data calculation preserved for refinement prompt
             
-            # Get target word count from session or use default
             user_target_words = st.session_state.get('word_count', 4569)
             
-            # Section budgets (percentages)
             section_budgets = {
                 'Abstract': 0.02,
                 'Introduction': 0.12,
@@ -3735,7 +3385,6 @@ ARTICLE TO REWRITE (no citations present):
                 'Conclusion': 0.03,
             }
             
-            # Parse article into sections and count words
             def analyze_sections(article_text):
                 import re
                 sections = {}
@@ -3743,15 +3392,11 @@ ARTICLE TO REWRITE (no citations present):
                 current_text = []
                 
                 for line in article_text.split('\n'):
-                    # Check for section headers (## Header or # Header)
                     header_match = re.match(r'^#{1,2}\s+(.+)$', line.strip())
                     if header_match:
-                        # Save previous section
                         if current_text:
                             sections[current_section] = ' '.join(current_text)
-                        # Start new section
                         header = header_match.group(1).strip()
-                        # Normalize section names
                         header_lower = header.lower()
                         if 'abstract' in header_lower:
                             current_section = 'Abstract'
@@ -3777,7 +3422,6 @@ ARTICLE TO REWRITE (no citations present):
                     else:
                         current_text.append(line)
                 
-                # Save last section
                 if current_text:
                     sections[current_section] = ' '.join(current_text)
                 
@@ -3785,7 +3429,6 @@ ARTICLE TO REWRITE (no citations present):
             
             sections = analyze_sections(article_to_refine)
             
-            # Calculate word counts and gaps
             total_body_words = 0
             section_analysis = []
             
@@ -3804,85 +3447,6 @@ ARTICLE TO REWRITE (no citations present):
                     '% of Target': f"{pct_of_target:.0f}%",
                     'Status': '✅' if gap <= 0 else ('⚠️' if pct_of_target >= 70 else '❌')
                 })
-            
-            # Display as table
-            import pandas as pd
-            df = pd.DataFrame(section_analysis)
-            st.dataframe(df, width='stretch', hide_index=True)
-            
-            # Summary and Unified Word Count Recommendations
-            st.markdown("---")
-            st.markdown("### 📝 Dynamic Word Count Recommendations")
-            
-            total_gap = user_target_words - total_body_words
-            if total_gap > 0:
-                st.warning(f"⚠️ **Total body words: {total_body_words}** (target: {user_target_words}, need +{total_gap} words)")
-            elif total_gap < 0:
-                st.info(f"ℹ️ **Total body words: {total_body_words}** (target: {user_target_words}, exceeds by {-total_gap} words)")
-            else:
-                st.success(f"✅ **Total body words: {total_body_words}** — meets target of {user_target_words} words!")
-            
-            # Collect sections needing changes
-            needs_expansion = [s for s in section_analysis if s['Gap'] > 0]
-            needs_reduction = []
-            for s in section_analysis:
-                if s['Gap'] < 0 and abs(s['Gap']) > 20:  # Significant overage
-                    pct_over = ((s['Current'] - s['Target']) / s['Target'] * 100) if s['Target'] > 0 else 0
-                    needs_reduction.append({
-                        **s,
-                        'Percent Over': f"{pct_over:.0f}%",
-                        'Reduction Needed': abs(s['Gap'])
-                    })
-            
-            # Sort by priority (largest gap first)
-            needs_expansion.sort(key=lambda x: x['Gap'], reverse=True)
-            needs_reduction.sort(key=lambda x: x['Reduction Needed'], reverse=True)
-            
-            # Unified recommendations display
-            if needs_expansion or needs_reduction:
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    if needs_expansion:
-                        st.markdown("**🎯 Sections to Expand (in priority order):**")
-                        for i, s in enumerate(needs_expansion[:5], 1):
-                            st.markdown(f"""
-                            **{i}. {s['Section']}** - Current: {s['Current']} words, Target: {s['Target']} words  
-                            *Add {s['Gap']} words ({s['% of Target']} of target)*
-                            """)
-                    else:
-                        st.info("✅ No sections need expansion")
-                
-                with col2:
-                    if needs_reduction:
-                        st.markdown("**🔹 Sections to Reduce (in priority order):**")
-                        for i, s in enumerate(needs_reduction[:5], 1):
-                            # Generate specific reduction prompt based on section type
-                            if 'Abstract' in s['Section']:
-                                prompt = "Remove redundant phrases, combine sentences, eliminate filler words, and keep only essential technical contributions. IMPORTANT: Remove ALL mathematical formulas, equations, citations, and references from the abstract."
-                            elif 'Introduction' in s['Section']:
-                                prompt = "Condense background information, remove repetitive statements, and focus on unique contributions."
-                            elif 'Methodology' in s['Section']:
-                                prompt = "Simplify procedural descriptions, remove redundant explanations, and use concise technical language."
-                            elif 'Results' in s['Section']:
-                                prompt = "Combine similar findings, eliminate redundant data presentations, and focus on key results."
-                            elif 'Discussion' in s['Section']:
-                                prompt = "Remove repetitive interpretations, consolidate similar points, and focus on unique insights."
-                            elif 'Conclusion' in s['Section']:
-                                prompt = "Eliminate summary repetitions, focus only on final conclusions and key takeaways."
-                            else:
-                                prompt = "Remove redundancy while preserving technical accuracy and key content."
-                            
-                            st.markdown(f"""
-                            **{i}. {s['Section']}** - Current: {s['Current']} words, Target: {s['Target']} words  
-                            *Reduce by {s['Reduction Needed']} words ({s['Percent Over']} over target)*  
-                            **Prompt:** {prompt}
-                            """)
-                    else:
-                        st.info("✅ No sections need reduction")
-                
-            else:
-                st.success("✅ All sections are within target word count limits!")
 
             # Refinement controls
             st.markdown("---")
@@ -4386,112 +3950,8 @@ Do NOT add new citations unless explicitly instructed.""" + (reference_preservat
                     else:
                         st.warning("⚠️ PDF generation failed. Please try regenerating the article.")
         
-        # Show sources used with PDF links
-        if st.session_state.article_sources and 'citation_map' in st.session_state:
-            st.divider()
-            st.subheader("📚 Sources Used in Article with PDF Links")
-            
-            # Get cited papers from citation manager
-            citation_manager = CitationManager()
-            cited_numbers = citation_manager.extract_citations_from_article(st.session_state.generated_article)
-            
-            # Reverse citation map
-            number_to_filename = {num: filename for filename, num in st.session_state.citation_map.items()}
-            
-            # Get unique cited filenames with their citation numbers
-            cited_sources = {}
-            for num in sorted(cited_numbers):
-                if num in number_to_filename:
-                    filename = number_to_filename[num]
-                    # Find score from sources
-                    score = 0.0
-                    for source in st.session_state.article_sources:
-                        if source['filename'] == filename:
-                            score = source.get('score', 0.0)
-                            break
-                    cited_sources[filename] = {'number': num, 'score': score}
-            
-            # Display cited sources with PDF links and metadata
-            # Calculate completeness
-            total_citations = len(cited_numbers)
-            defined_citations = len(cited_sources)
-            completeness = (defined_citations / total_citations * 100) if total_citations > 0 else 0
-            
-            # Status indicator
-            if completeness < 50:
-                status_icon = "🔴"
-                status_text = "CRITICAL"
-            elif completeness < 80:
-                status_icon = "🟡"
-                status_text = "INCOMPLETE"
-            else:
-                status_icon = "🟢"
-                status_text = "COMPLETE"
-            
-            st.markdown(f"**{status_icon} References: {defined_citations}/{total_citations} ({completeness:.0f}% {status_text})**")
-            
-            if completeness < 100:
-                missing_count = total_citations - defined_citations
-                missing_nums = sorted(cited_numbers - set(number_to_filename.keys()))[:10]
-                st.warning(f"⚠️ {missing_count} citations are missing reference entries: {missing_nums}{'...' if missing_count > 10 else ''}. These will show as 'MISSING REFERENCE' in exports.")
-            
-            # Load metadata
-            metadata_path = "pdf_metadata.json"
-            metadata = {}
-            if os.path.exists(metadata_path):
-                with open(metadata_path, 'r') as f:
-                    metadata = json.load(f)
-            
-            # Use absolute path to PDF folder
-            pdf_folder = "/Users/roan-aparavi/aparavi-repo/Roan-IEEE/downloaded_pdfs"
-            
-            for filename, info in sorted(cited_sources.items(), key=lambda x: x[1]['number']):
-                citation_num = info['number']
-                score = info['score']
-                
-                # Get metadata for this paper
-                paper_meta = metadata.get(filename, {})
-                title = paper_meta.get('title', 'Unknown Title')
-                authors = paper_meta.get('authors', 'Unknown Authors')
-                year = paper_meta.get('year', 'N/A')
-                
-                # Check if PDF exists
-                pdf_path = os.path.join(pdf_folder, filename)
-                pdf_exists = os.path.exists(pdf_path)
-                
-                col1, col2 = st.columns([1, 4])
-                
-                with col1:
-                    st.markdown(f"**[{citation_num}]**")
-                
-                with col2:
-                    if pdf_exists:
-                        # Show title and authors with open button
-                        col_info, col_btn = st.columns([4, 1])
-                        with col_info:
-                            st.markdown(f"📄 **{title}**")
-                            st.caption(f"👥 {authors} ({year})")
-                            st.caption(f"📁 {filename} • Relevance: {score:.2%}")
-                        with col_btn:
-                            if st.button("📂 Open", key=f"open_{citation_num}", help="Open PDF in system viewer"):
-                                try:
-                                    subprocess.run(['open', pdf_path], check=True)
-                                    st.success("Opening PDF...", icon="✅")
-                                except Exception as e:
-                                    st.error(f"Error opening PDF: {e}")
-                    else:
-                        st.markdown(f"📄 **{title}**")
-                        st.caption(f"👥 {authors} ({year})")
-                        st.caption(f"📁 {filename} (PDF not found) • Relevance: {score:.2%}")
-            
-            # Show uncited papers if any
-            all_papers = set(st.session_state.citation_map.keys())
-            cited_papers = set(cited_sources.keys())
-            uncited_papers = all_papers - cited_papers
-            
-            if uncited_papers:
-                with st.expander(f"⚠️ Uncited Papers ({len(uncited_papers)} not used)"):
-                    st.caption("These papers were retrieved but not cited in the article:")
+        # Removed redundant "Sources Used in Article with PDF Links" section
+        # Citation information is already available in the citation report expander above
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -4533,7 +3993,7 @@ Do NOT add new citations unless explicitly instructed.""" + (reference_preservat
                     "Select Collection:",
                     sorted_collections,
                     index=0,
-                    key="selected_collection"
+                    key="main_selected_collection"
                 )
                 
                 # Store in session state
@@ -4653,90 +4113,10 @@ def render_sidebar():
                 st.warning("No collections found")
                 st.session_state.active_collection = st.session_state.get('active_collection', 'academic_papers_100_specter')
         except Exception as e:
-            st.error("✗ Qdrant Not Connected")
-            st.caption(f"Error: {str(e)}")
+            # Silently handle Qdrant connection errors in sidebar
             st.session_state.active_collection = st.session_state.get('active_collection', 'academic_papers_100_specter')
         
         st.divider()
-        
-        # Navigation Menu
-        st.header("📍 Quick Navigation")
-        st.markdown("""
-        <style>
-        .nav-menu a {
-            display: block;
-            padding: 8px 12px;
-            margin: 4px 0;
-            text-decoration: none;
-            background-color: #f0f2f6;
-            color: #1f77b4;
-            border-radius: 6px;
-            font-weight: 500;
-            transition: background-color 0.2s;
-        }
-        .nav-menu a:hover {
-            background-color: #e1e5e9;
-            color: #0d47a1;
-        }
-        .nav-info {
-            font-size: 0.85em;
-            color: #666;
-            margin-top: -3px;
-            margin-bottom: 8px;
-        }
-        </style>
-        <div class="nav-info">
-        💡 <strong>Note:</strong> Sections are in different tabs. Click the tab first, then use the link to navigate.
-        </div>
-        <div class="nav-menu">
-        <a href="#section1">🔍 Section 1: Paper Analysis & Q&A</a>
-        <div class="nav-info">→ Tab: 🔍 Q&A Analysis</div>
-        <a href="#section2">🔬 Section 2: Research Landscape Analysis</a>
-        <div class="nav-info">→ Tab: 🔬 Research Analysis</div>
-        <a href="#section3">📚 Section 3: Paper Explorer & Similar Papers</a>
-        <div class="nav-info">→ Tab: 📚 Paper Explorer</div>
-        <a href="#section-2-step-1-synthesis-article-generator">✍️ Section 4 — Step 1: Synthesis Article Generator</a>
-        <div class="nav-info">→ Tab: ✍️ Article Generation</div>
-        <a href="#step1">📝 Step 1: Generate Article</a>
-        <div class="nav-info">→ Tab: ✍️ Article Generation</div>
-        <a href="#step2a">🔍 Step 2A: Discover References</a>
-        <div class="nav-info">→ Tab: ✍️ Article Generation</div>
-        <a href="#step-2-1-extract-keywords">🔍 Step 2.1: Extract Keywords</a>
-        <div class="nav-info">→ Tab: ✍️ Article Generation</div>
-        <a href="#step-2-2-search-semantic-scholar-api">🔍 Step 2.2: Semantic Scholar API</a>
-        <div class="nav-info">→ Tab: ✍️ Article Generation</div>
-        <a href="#step2b">🔗 Step 2B: Integrate References</a>
-        <div class="nav-info">→ Tab: ✍️ Article Generation</div>
-        <a href="#step3">✨ Step 3: Enhanced Article</a>
-        <div class="nav-info">→ Tab: ✍️ Article Generation</div>
-        <a href="#step-4-1-article-metrics">📊 Step 4.1: Article Metrics</a>
-        <div class="nav-info">→ Tab: ✍️ Article Generation</div>
-        <a href="#step4">⚡ Step 4: Refine Article</a>
-        <div class="nav-info">→ Tab: ✍️ Article Generation</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.divider()
-        
-        st.markdown("""
-        ### 🚀 Quick Start
-        1. **Q&A**: Ask questions about papers
-        2. **Articles**: Generate synthesis articles
-        3. **Graph**: Explore document relationships
-        4. **Vectors**: Visualize embedding space
-        
-        ### 📁 Resources
-        """)
-        
-        # Links to generated files
-        if os.path.exists("knowledge_graph_current.html"):
-            st.markdown("[🕸️ Knowledge Graph](knowledge_graph_current.html)")
-        if os.path.exists("vector_viz_current.html"):
-            st.markdown("[📊 Vector Visualization](vector_viz_current.html)")
-        if os.path.exists("knowledge_graph_100.html"):
-            st.markdown("[🕸️ Graph (100 PDFs)](knowledge_graph_100.html)")
-        if os.path.exists("vector_viz_100_2d.html"):
-            st.markdown("[📊 Vectors (100 PDFs)](vector_viz_100_2d.html)")
 
 
 def main():
@@ -4768,6 +4148,95 @@ def main():
     
     with tab5:
         render_article_analysis()
+    
+    # Cache Management Section
+    st.divider()
+    st.subheader("💾 Cache Management")
+    
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
+    
+    with col1:
+        if st.button("💾 Save Work", help="Manually save all current work to cache"):
+            _save_ui_cache({
+                'answer_result': st.session_state.get('answer_result'),
+                'generated_article': st.session_state.get('generated_article'),
+                'base_generated_article': st.session_state.get('base_generated_article'),
+                'article_sources': st.session_state.get('article_sources'),
+                'citation_map': st.session_state.get('citation_map'),
+                'citation_stats': st.session_state.get('citation_stats'),
+                'reference_list': st.session_state.get('reference_list'),
+                'article_topic_stored': st.session_state.get('article_topic_stored'),
+                'refined_article': st.session_state.get('refined_article'),
+                'refinement_report': st.session_state.get('refinement_report'),
+                'word_count': st.session_state.get('word_count'),
+                'selected_model': st.session_state.get('selected_model'),
+                'selected_llm': st.session_state.get('selected_llm'),
+                'refine_instructions': st.session_state.get('refine_instructions'),
+            })
+            st.success("✅ Work saved successfully!", icon="✅")
+    
+    with col2:
+        # Get list of backup files
+        import glob
+        import datetime
+        backup_files = glob.glob(os.path.join(_UI_CACHE_DIR, "ui_cache_backup_*.json"))
+        backup_files.sort(reverse=True)  # Most recent first
+        
+        if backup_files:
+            # Create options with timestamps
+            backup_options = {}
+            for backup_file in backup_files[:10]:  # Show last 10 backups
+                filename = os.path.basename(backup_file)
+                # Extract timestamp from filename: ui_cache_backup_20260108_005221.json
+                timestamp_str = filename.replace('ui_cache_backup_', '').replace('.json', '')
+                try:
+                    dt = datetime.datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+                    file_size = os.path.getsize(backup_file)
+                    size_mb = file_size / (1024 * 1024)
+                    display_name = f"{dt.strftime('%m/%d %I:%M:%S %p')} ({size_mb:.1f}MB)"
+                    backup_options[display_name] = backup_file
+                except (ValueError, OSError):
+                    backup_options[filename] = backup_file
+            
+            selected_backup = st.selectbox(
+                "📂 Restore from Backup:",
+                options=list(backup_options.keys()),
+                key="backup_selector",
+                help="Select a backup to restore your work"
+            )
+            
+            if st.button("🔄 Restore", help="Restore selected backup"):
+                backup_path = backup_options[selected_backup]
+                try:
+                    import shutil
+                    shutil.copy(backup_path, _UI_CACHE_PATH)
+                    st.success(f"✅ Restored from {selected_backup}")
+                    st.info("🔄 Please refresh the page to load the restored data")
+                except Exception as e:
+                    st.error(f"Failed to restore backup: {e}")
+        else:
+            st.info("No backups available")
+    
+    with col3:
+        if st.button("🗑️ Clear Cache", help="Clear all cached work"):
+            _save_ui_cache({
+                'answer_result': _UI_CACHE_DELETE,
+                'generated_article': _UI_CACHE_DELETE,
+                'base_generated_article': _UI_CACHE_DELETE,
+                'article_sources': _UI_CACHE_DELETE,
+                'citation_map': _UI_CACHE_DELETE,
+                'citation_stats': _UI_CACHE_DELETE,
+                'reference_list': _UI_CACHE_DELETE,
+                'article_topic_stored': _UI_CACHE_DELETE,
+                'refined_article': _UI_CACHE_DELETE,
+                'refinement_report': _UI_CACHE_DELETE,
+                'word_count': _UI_CACHE_DELETE,
+                'selected_model': _UI_CACHE_DELETE,
+                'selected_llm': _UI_CACHE_DELETE,
+                'refine_instructions': _UI_CACHE_DELETE,
+            })
+            st.session_state.clear()
+            st.rerun()
     
     # Footer
     st.divider()

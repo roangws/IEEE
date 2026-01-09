@@ -69,9 +69,7 @@ def render_layer2a_fetch_external_refs():
         st.session_state.selected_keywords = []
     
     with st.container(border=True):
-        st.markdown('<a id="step-2-1-extract-keywords"></a>', unsafe_allow_html=True)
-        st.markdown("### Step 2.1 — Extract Keywords")
-    
+        st.markdown('<a id="step-2-1-extract-keywords"></a>', unsafe_allow_html=True)    
         # Model selection and parameters
         col1, col2, col3 = st.columns(3)
     
@@ -199,7 +197,7 @@ def render_layer2a_fetch_external_refs():
         with st.container(border=True):
             top_row_left, top_row_right = st.columns([12, 1])
             with top_row_left:
-                st.markdown("### Step 2.2 — Search Semantic Scholar (API) *(Optional)*")
+                st.markdown("### Search Semantic Scholar (API) *(Optional)*")
                 st.caption("💡 This step is optional. You can skip it and go directly to Step 5 (Refinement) below.")
 
             # Load reference-analysis guidance (years/venues/source buckets) to improve search realism
