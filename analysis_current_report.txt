@@ -2,61 +2,61 @@
 RESEARCH LANDSCAPE ANALYSIS REPORT
 ============================================================
 
-Total Papers Analyzed: 227
+Total Papers Analyzed: 34
 Number of Research Themes: 5
 
 ----------------------------------------
 RESEARCH THEMES
 ----------------------------------------
 
-🔹 Detection & Learning
-   Papers: 82 (36.1%)
-   Keywords: detection, based, learning, multi, using
+🔹 Structured Pruning & Structured
+   Papers: 1 (2.9%)
+   Keywords: structured pruning, structured, sparse cnn, sparse, pruning efficient
 
-🔹 Learning & Recognition
-   Papers: 11 (4.8%)
-   Keywords: based, learning, recognition, efficient, classification
+🔹 Environments & Adaptive
+   Papers: 11 (32.4%)
+   Keywords: ai, environments, adaptive, learning, dynamic
 
-🔹 Learning
-   Papers: 41 (18.1%)
-   Keywords: learning, using, analysis, models, detection
+🔹 Learning & Future
+   Papers: 8 (23.5%)
+   Keywords: ai, learning, future, robotics, evolution
 
-🔹 Learning
-   Papers: 44 (19.4%)
-   Keywords: learning, based, ai, approach, using
+🔹 Autonomous & Environments
+   Papers: 9 (26.5%)
+   Keywords: autonomous, environments, learning, models, autonomous driving
 
-🔹 Learning
-   Papers: 49 (21.6%)
-   Keywords: based, using, learning, data, review
+🔹 Intelligence & Collective
+   Papers: 5 (14.7%)
+   Keywords: intelligence, collective, advancements, intelligence advancements, mobility management
 
 ----------------------------------------
 TOP INFLUENTIAL PAPERS
 ----------------------------------------
 
-1. Multi-Relay UAV-RIS Digital Twin-Based Framework for User Fa...
-   Authors: Abdulmalik Alwarafy, Naveed Khan, Nasir Saeed, Mus
-   Theme: Learning
+1. Cross-Filter Structured Pruning for Efficient Sparse CNN Acc...
+   Authors: Ngoc-Son Pham, Sangwon Shin, Lei Xu, Weidong Shi, 
+   Theme: Structured Pruning & Structured
 
-2. Diverse Representation Knowledge Distillation for Efficient ...
-   Authors: Andreas Winata, Nur Afny Catur Andryani, Alexander
-   Theme: Learning & Recognition
+2. Image Coding for Object Recognition Tasks Based on Contour F...
+   Authors: Takahiro Shindo, Taiju Watanabe, Yui Tatsumi, and 
+   Theme: Autonomous & Environments
 
-3. CardioMind: Deep Learning Framework for Stress Detection Usi...
-   Authors: Lynn El Arwadi and Layal Abu Daher
-   Theme: Learning
+3. A Design Framework for Scalable and Adaptive Multi-Agent Coo...
+   Authors: Raza Muhammad Kazim, Guoxin Wang, Zhenjun Ming, Ji
+   Theme: Environments & Adaptive
 
-4. Monte Carlo-Based Strategy for Assessing the Impact of EEG D...
-   Authors: Pierre Sedi Nzakuna, Vincenzo Gallo, Vincenzo Paci
-   Theme: Learning
+4. Human-in-the-Loop Reinforcement Learning to Track Excavation...
+   Authors: Tatsuya Mori, Tatsuya Yoshimoto, and Hiroshi Yoshi
+   Theme: Environments & Adaptive
 
-5. An Explainable AI and Optimized Multi-Branch Convolutional N...
-   Authors: Kamel K. Mohammed, Nadia Dahmani, Rania Ahmed, Ash
-   Theme: Detection & Learning
+5. ETIA: Enhancing Text2Image Surround View Scene Generation Wi...
+   Authors: S. Raghavendra, S. K. Abhilash, Venu Madhav Nookal
+   Theme: Autonomous & Environments
 
 ----------------------------------------
 RESEARCH GAPS & OPPORTUNITIES
 ----------------------------------------
 
 ⚠️ Under-explored Area
-   'Learning & Recognition' has only 11 papers (4.8%)
-   💡 Consider exploring based, learning, recognition
+   'Structured Pruning & Structured' has only 1 papers (2.9%)
+   💡 Consider exploring structured pruning, structured, sparse cnn

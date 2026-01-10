@@ -4,6 +4,8 @@
 
 An advanced RAG (Retrieval-Augmented Generation) system that analyzes 5,634 academic papers using AI-powered analytics, quality metrics assessment, and automated article generation. Built with multi-layer architecture and external reference integration.
 
+This system enables comprehensive research understanding by identifying future work opportunities, analyzing related work, and creating analytical foundations from thousands of papers. It can search for relevant articles across the corpus and generate insights, as demonstrated in the generated article [Contextualization of Learning](outcomes/Contextualization%20of%20Learning.pdf). The system also produces self-analytical articles that evaluate their own quality and identify improvements, such as [IEEE Analysis Article](outcomes/ieee_analysis_Article.pdf). All important analysis patterns and findings are documented in the comprehensive [IEEE Patterns Summary](output/ieee_patterns_summary.json).
+
 ## Analysis Results & Corpus Metrics
 
 ### 📚 Dataset Overview (5,634 Papers)
@@ -84,22 +86,26 @@ Comprehensive analysis across the entire dataset:
   4. "Dropout: A Simple Way to Prevent Neural Networks" - 111 citations
   5. "Batch Normalization" - 107 citations
 
-### 📝 Section-Level Word Count Analysis (Sample: 467 Papers)
+### 📝 IEEE Article Word Count Guidelines (Based on 5,671 papers + Reference Analysis)
 
-| Section | Presence Rate | Mean Words | Median Words | Range (Min-Max) |
-|---------|---------------|------------|--------------|-----------------|
-| **Abstract** | 60% | 1,552 | 476 | 114 - 4,065 |
-| **Introduction** | 98.9% | 1,987 | 1,178 | 148 - 19,443 |
-| **Related Work** | 40.0% | 2,206 | 1,502 | 100 - 16,200 |
-| **Methodology** | 59.5% | 2,338 | 1,856 | 8 - 11,745 |
-| **Experiments** | 39.2% | 1,655 | 1,554 | 30 - 6,105 |
-| **Results** | 36.6% | 1,985 | 1,593 | 3 - 14,115 |
-| **Discussion** | 30.0% | 1,355 | 847 | 4 - 13,297 |
-| **Conclusion** | 67.5% | 1,009 | 773 | 1 - 5,371 |
+| Section | Target Words | % of Body | % of Total |
+|---------|--------------|-----------|------------|
+| **Abstract** | 91 | 2.0% | 1.4% |
+| **Introduction** | 548 | 12.0% | 8.4% |
+| **Related Work** | 914 | 20.0% | 14.0% |
+| **Methodology** | 1,142 | 25.0% | 17.4% |
+| **Experiments** | 685 | 15.0% | 10.5% |
+| **Results** | 685 | 15.0% | 10.5% |
+| **Discussion** | 366 | 8.0% | 5.6% |
+| **Conclusion** | 137 | 3.0% | 2.1% |
+| **Article Body Total** | **4,569** | **100%** | **69.8%** |
+| **References** | **1,981** | - | **30.2%** |
+| **TOTAL ARTICLE** | **6,550** | - | **100%** |
 
 **Key Observations:**
 - Introduction has the highest presence rate (98.9%), making it nearly universal
 - Methodology sections are typically the longest (mean 2,338 words)
+- References constitute 30.2% of total article word count (avg 1,981 words)
 - Abstract word count varies significantly, suggesting different journal requirements
 
 ---
