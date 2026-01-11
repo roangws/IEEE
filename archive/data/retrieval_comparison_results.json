@@ -1,0 +1,42 @@
+[
+  {
+    "query": "transformer architectures for natural language processing",
+    "overlap": 0,
+    "unique_to_new": 10,
+    "old_avg_score": 0.8366012890000001,
+    "new_avg_score": 0.8458964339999999,
+    "improvement_pct": 1.1110603249381126
+  },
+  {
+    "query": "graph neural networks for program analysis",
+    "overlap": 0,
+    "unique_to_new": 10,
+    "old_avg_score": 0.8096314230000001,
+    "new_avg_score": 0.8374328910000001,
+    "improvement_pct": 3.433842512804736
+  },
+  {
+    "query": "deep learning approaches to code similarity detection",
+    "overlap": 1,
+    "unique_to_new": 9,
+    "old_avg_score": 0.8443151180000001,
+    "new_avg_score": 0.853100023,
+    "improvement_pct": 1.040477046154211
+  },
+  {
+    "query": "attention mechanisms in neural machine translation",
+    "overlap": 0,
+    "unique_to_new": 10,
+    "old_avg_score": 0.7902393620000001,
+    "new_avg_score": 0.840508799,
+    "improvement_pct": 6.361292466218591
+  },
+  {
+    "query": "convolutional neural networks for image classification",
+    "overlap": 0,
+    "unique_to_new": 10,
+    "old_avg_score": 0.854547374,
+    "new_avg_score": 0.8764465639999999,
+    "improvement_pct": 2.5626654140300293
+  }
+]

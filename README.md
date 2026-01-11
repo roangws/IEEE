@@ -2,6 +2,14 @@
 
 **By Roan Guilherme Weigert Salgueiro**
 
+## 🎥 Project Overview Video
+
+[![Watch the project overview](youtube_thumbnail.jpg)](https://www.youtube.com/watch?v=ba-PnrX5Ysg)
+
+**[▶️ Watch the full demonstration on YouTube](https://www.youtube.com/watch?v=ba-PnrX5Ysg)**
+
+---
+
 An advanced RAG (Retrieval-Augmented Generation) system that analyzes 5,634 academic papers using AI-powered analytics, quality metrics assessment, and automated article generation. Built with multi-layer architecture and external reference integration.
 
 This system enables comprehensive research understanding by identifying future work opportunities, analyzing related work, and creating analytical foundations from thousands of papers. It can search for relevant articles across the corpus and generate insights, as demonstrated in the generated article [Contextualization of Learning](outcomes/Contextualization%20of%20Learning.pdf). The system also produces self-analytical articles that evaluate their own quality and identify improvements, such as [IEEE Analysis Article](outcomes/ieee_analysis_Article.pdf). All important analysis patterns and findings are documented in the comprehensive [IEEE Patterns Summary](output/ieee_patterns_summary.json).
@@ -10,9 +18,9 @@ This system enables comprehensive research understanding by identifying future w
 
 ### 📚 Dataset Overview (5,634 Papers)
 - **Data Source**: [IEEE Access Journal (2025)](https://ieeexplore.ieee.org/xpl/RecentIssue.jsp?punumber=6287639)
-- **Total Corpus Size**: 5,634 academic papers fully indexed and analyzed
+- **Total Corpus Size**: 5,634 academic papers fully indexed and analyzed (curated selection from 13,000+ papers accepted in 2025)
 - **Citation Network**: 225,855 references extracted across the entire corpus
-- **Paper Length Distribution**: 2204 - 9,301 words (avg 6,630, median 6,085)
+- **Paper Length Distribution**: 2204 - 9,301 words (avg 6,630, median 6,085including the references word count)
 - **Section Complexity**: 1 - 23 sections per paper (avg 20.1)
 - **Reference Density**: 15 - 80 references per paper (avg 42)
 - **In-text Citations**: 20 - 590 citations per paper (avg 137.5)
